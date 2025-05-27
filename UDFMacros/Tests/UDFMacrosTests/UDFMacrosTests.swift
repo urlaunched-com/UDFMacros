@@ -27,7 +27,32 @@ final class UDFMacrosTests: XCTestCase {
             }
             """#,
             expandedSource: #"""
-            ""
+            enum TestEnum {
+                case test1(id: Int, index: Int)
+                case test2(Int)
+                case test3(flag: Bool, modelID: Model.ID, user: User)
+                case test4
+                case test5(Model.ID)
+            }
+
+            extension TestEnum: Equatable {
+                static func == (lhs: Self, rhs: Self) -> Bool {
+                    switch (lhs, rhs) {
+                    case let (.test1(lhs0, lhs1), .test1(rhs0, rhs1)):
+                        lhs0 == rhs0 && lhs1 == rhs1
+                    case let (.test2(lhs0), .test2(rhs0)):
+                        lhs0 == rhs0
+                    case let (.test3(lhs0, lhs1, _), .test3(rhs0, rhs1, _)):
+                        lhs0 == rhs0 && lhs1 == rhs1
+                    case (.test4, .test4):
+                        true
+                    case let (.test5(lhs0), .test5(rhs0)):
+                        lhs0 == rhs0
+                    default:
+                        false
+                    }
+                }
+            }
             """#,
             macros: testMacros
         )
