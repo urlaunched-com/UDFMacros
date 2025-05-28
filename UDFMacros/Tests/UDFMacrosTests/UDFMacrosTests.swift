@@ -36,7 +36,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension TestEnum: Equatable {
-                static func == (lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
                     switch (lhs, rhs) {
                     case let (.test1(lhs0, lhs1), .test1(rhs0, rhs1)):
                         lhs0 == rhs0 && lhs1 == rhs1
@@ -73,6 +73,18 @@ final class UDFMacrosTests: XCTestCase {
             }
             """#,
             expandedSource: #"""
+            struct TestStruct {
+                let id: Int
+                let value: Int
+                let model: Model
+                let modelID: Model.ID
+            }
+            
+            extension TestStruct: Equatable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    lhs.id == rhs.id && lhs.value == rhs.value && lhs.modelID == rhs.modelID
+                }
+            }
             """#,
             macros: testMacros
         )
@@ -93,6 +105,18 @@ final class UDFMacrosTests: XCTestCase {
             }
             """#,
             expandedSource: #"""
+            class TestClass {
+                let id: Int
+                let value: Int
+                let model: Model
+                let modelID: Model.ID
+            }
+
+            extension TestClass: Equatable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    lhs.id == rhs.id && lhs.value == rhs.value && lhs.modelID == rhs.modelID
+                }
+            }
             """#,
             macros: testMacros
         )
