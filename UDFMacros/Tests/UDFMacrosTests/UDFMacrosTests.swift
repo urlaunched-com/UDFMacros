@@ -19,34 +19,50 @@ final class UDFMacrosTests: XCTestCase {
         assertMacroExpansion(
             #"""
             @AutoEquatable enum TestEnum {
-                case test1(id: Int, index: Int)
-                case test2(Int)
-                case test3(flag: Bool, modelID: Model.ID, user: User)
-                case test4
-                case test5(Model.ID)
+                case congratulations(Command)
+                case analytics(Wish.ID)
+                case addVideoFeedback(presentAddPhotoFeedback: Command)
+                case addPhotoFeedback(wishId: Wish.ID)
+                case additionalPhotosZoomed(selectedPhoto: S3MediaResource, photos: [S3MediaResource])
+                case comments(presentation: WishDetailsPresentationType, wishId: Wish.ID)
+                case wishmates(Wish.ID)
+                case editWishFeedback(wishFeedback: WishFeedback)
+                case boosts(Wish.ID)
             }
             """#,
             expandedSource: #"""
             enum TestEnum {
-                case test1(id: Int, index: Int)
-                case test2(Int)
-                case test3(flag: Bool, modelID: Model.ID, user: User)
-                case test4
-                case test5(Model.ID)
+                case congratulations(Command)
+                case analytics(Wish.ID)
+                case addVideoFeedback(presentAddPhotoFeedback: Command)
+                case addPhotoFeedback(wishId: Wish.ID)
+                case additionalPhotosZoomed(selectedPhoto: S3MediaResource, photos: [S3MediaResource])
+                case comments(presentation: WishDetailsPresentationType, wishId: Wish.ID)
+                case wishmates(Wish.ID)
+                case editWishFeedback(wishFeedback: WishFeedback)
+                case boosts(Wish.ID)
             }
 
             extension TestEnum: Equatable {
                 static func ==(lhs: Self, rhs: Self) -> Bool {
                     switch (lhs, rhs) {
-                    case let (.test1(lhs0, lhs1), .test1(rhs0, rhs1)):
-                        lhs0 == rhs0 && lhs1 == rhs1
-                    case let (.test2(lhs0), .test2(rhs0)):
-                        lhs0 == rhs0
-                    case let (.test3(lhs0, lhs1, _), .test3(rhs0, rhs1, _)):
-                        lhs0 == rhs0 && lhs1 == rhs1
-                    case (.test4, .test4):
+                    case let (.congratulations(_), .congratulations(_)):
                         true
-                    case let (.test5(lhs0), .test5(rhs0)):
+                    case let (.analytics(lhs0), .analytics(rhs0)):
+                        lhs0 == rhs0
+                    case let (.addVideoFeedback(_), .addVideoFeedback(_)):
+                        true
+                    case let (.addPhotoFeedback(lhs0), .addPhotoFeedback(rhs0)):
+                        lhs0 == rhs0
+                    case let (.additionalPhotosZoomed(lhs0, _), .additionalPhotosZoomed(rhs0, _)):
+                        lhs0 == rhs0
+                    case let (.comments(_, lhs1), .comments(_, rhs1)):
+                        lhs1 == rhs1
+                    case let (.wishmates(lhs0), .wishmates(rhs0)):
+                        lhs0 == rhs0
+                    case let (.editWishFeedback(_), .editWishFeedback(_)):
+                        true
+                    case let (.boosts(lhs0), .boosts(rhs0)):
                         lhs0 == rhs0
                     default:
                         false
