@@ -71,6 +71,69 @@ public struct AutoEquatableMacro: ExtensionMacro {
     }
 }
 
+public struct AutoHashableMacro: ExtensionMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingExtensionsOf type: some TypeSyntaxProtocol,
+        conformingTo protocols: [TypeSyntax],
+        in context: some MacroExpansionContext
+    ) throws -> [ExtensionDeclSyntax] {// Ensure we're attached to an enum; otherwise, nothing to generate
+        // Ensure we're attached to an enum; otherwise, nothing to generate
+        if let structDecl = declaration.as(StructDeclSyntax.self) {
+            // Handle struct: compare stored properties
+            // Collect all variable declarations in the struct
+            let vars = structDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
+            return try equatableFor(vars: vars, type: type)
+        } else if let classDecl = declaration.as(ClassDeclSyntax.self) {
+            // Handle class: compare stored properties
+            // Collect all variable declarations in the class
+            let vars = classDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
+            return try equatableFor(vars: vars, type: type)
+        } else if let enumDecl = declaration.as(EnumDeclSyntax.self) {
+            // Collect all member declarations of the enum
+            let members = enumDecl.memberBlock.members
+            // Filter members to only enum case declarations
+            let caseDecl = members.compactMap { $0.decl.as(EnumCaseDeclSyntax.self) }
+            // Flatten the cases to get all individual enum elements
+            let elements = caseDecl.flatMap { $0.elements }
+            
+            // Build each switch arm for the `==` implementation
+            let equatableArms = equatableArmsFor(enumElements: elements)
+            
+            // Construct the Hashable extension for the enum
+            let equalizeFunction = try FunctionDeclSyntax("static func ==(lhs: Self, rhs: Self) -> Bool") {
+                StmtSyntax("switch (lhs, rhs) {")
+                equatableArms
+                StmtSyntax("default: false")
+                StmtSyntax("}")
+            }
+            
+            let hashableArms = hashableArmsFor(enumElements: elements)
+            
+            let hashFunction = try FunctionDeclSyntax("static func hash(into hasher: inout Hasher)") {
+                StmtSyntax("switch (lhs, rhs) {")
+                hashableArms
+                StmtSyntax("default: hasher.combine(hashValue)")
+                StmtSyntax("}")
+            }
+            
+            let ext: DeclSyntax =
+            """
+            extension \(type.trimmed): Hashable {
+                \(raw: equalizeFunction.description)\n
+                \(raw: hashFunction.description)
+            }
+            """
+            
+            // Return the generated extension declaration to the compiler plugin
+            return [ext.cast(ExtensionDeclSyntax.self)]
+        } else {
+            return []
+        }
+    }
+}
+
 /// String utilities to determine if a type name should be treated as Equatable.
 private extension String {
     /// Checks if the string (type name) indicates Equatable conformance by name.
@@ -168,12 +231,60 @@ private extension ExtensionMacro {
             }
         }
     }
+    
+    static func hashableArmsFor(enumElements: [EnumCaseElementListSyntax.Element]) -> [StmtSyntax] {
+        enumElements.compactMap { element -> StmtSyntax? in
+            // Get the name of this enum case
+            let caseName = element.name.text
+            // If the case has associated values, generate bindings and comparisons
+            if let assoc = element.parameterClause, !assoc.parameters.isEmpty {
+                // Enumerate associated parameters for indexing
+                let enumeratedParameters = assoc.parameters.enumerated()
+                // Generate binding identifiers for lhs values where type is Equatable
+                
+                let isAllAssociatedTypesNonHashable = assoc.parameters
+                    .map { $0.type.description.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .allSatisfy { !$0.isEquatableByName }
+                
+                if isAllAssociatedTypesNonHashable {
+                    return nil
+                }
+                
+                let bindings = enumeratedParameters.map { index, param in
+                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return typeName.isEquatableByName ? "value\(index)" : "_"
+                }
+                
+                // Create the tuple pattern for bindings
+                let pattern = bindings.joined(separator: ", ")
+                
+                // Build hash combination for each Hashable associated value
+                let hashCombinations = enumeratedParameters
+                    .compactMap { index, param in
+                        let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
+                        
+                        if typeName.isEquatableByName {
+                            return "hasher.combine(\(bindings[index]))"
+                        }
+                        
+                        return nil
+                    }
+                    .joined(separator: "\n")
+                
+                // Return this switch arm for the case with its comparison logic
+                return StmtSyntax(stringLiteral: "case let .\(caseName)(\(pattern)): \(hashCombinations)\n")
+            } else {
+                // No hashable associated values
+                return nil
+            }
+        }
+    }
 }
-
 
 @main
 struct UDFMacrosPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         AutoEquatableMacro.self,
+        AutoHashableMacro.self
     ]
 }

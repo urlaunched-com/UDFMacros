@@ -10,6 +10,7 @@ import UDFMacrosMacros
 
 let testMacros: [String: Macro.Type] = [
     "AutoEquatable": AutoEquatableMacro.self,
+    "AutoHashable": AutoHashableMacro.self,
 ]
 #endif
 
@@ -131,6 +132,88 @@ final class UDFMacrosTests: XCTestCase {
             extension TestClass: Equatable {
                 static func ==(lhs: Self, rhs: Self) -> Bool {
                     lhs.id == rhs.id && lhs.value == rhs.value && lhs.modelID == rhs.modelID
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
+    func testAutoHashableForEnum() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoHashable enum TestEnum {
+                case congratulations(Command)
+                case analytics(Wish.ID)
+                case addVideoFeedback(presentAddPhotoFeedback: Command)
+                case addPhotoFeedback(wishId: Wish.ID)
+                case additionalPhotosZoomed(selectedPhoto: S3MediaResource, photos: [S3MediaResource])
+                case comments(presentation: WishDetailsPresentationType, wishId: Wish.ID)
+                case wishmates(Wish.ID)
+                case editWishFeedback(wishFeedback: WishFeedback)
+                case boosts(Wish.ID)
+            }
+            """#,
+            expandedSource: #"""
+            enum TestEnum {
+                case congratulations(Command)
+                case analytics(Wish.ID)
+                case addVideoFeedback(presentAddPhotoFeedback: Command)
+                case addPhotoFeedback(wishId: Wish.ID)
+                case additionalPhotosZoomed(selectedPhoto: S3MediaResource, photos: [S3MediaResource])
+                case comments(presentation: WishDetailsPresentationType, wishId: Wish.ID)
+                case wishmates(Wish.ID)
+                case editWishFeedback(wishFeedback: WishFeedback)
+                case boosts(Wish.ID)
+            }
+
+            extension TestEnum: Hashable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    switch (lhs, rhs) {
+                    case let (.congratulations(_), .congratulations(_)):
+                        true
+                    case let (.analytics(lhs0), .analytics(rhs0)):
+                        lhs0 == rhs0
+                    case let (.addVideoFeedback(_), .addVideoFeedback(_)):
+                        true
+                    case let (.addPhotoFeedback(lhs0), .addPhotoFeedback(rhs0)):
+                        lhs0 == rhs0
+                    case let (.additionalPhotosZoomed(lhs0, _), .additionalPhotosZoomed(rhs0, _)):
+                        lhs0 == rhs0
+                    case let (.comments(_, lhs1), .comments(_, rhs1)):
+                        lhs1 == rhs1
+                    case let (.wishmates(lhs0), .wishmates(rhs0)):
+                        lhs0 == rhs0
+                    case let (.editWishFeedback(_), .editWishFeedback(_)):
+                        true
+                    case let (.boosts(lhs0), .boosts(rhs0)):
+                        lhs0 == rhs0
+                    default:
+                        false
+                    }
+                }
+
+                static func hash(into hasher: inout Hasher) {
+                    switch (lhs, rhs) {
+                    case let .analytics(value0):
+                        hasher.combine(value0)
+                    case let .addPhotoFeedback(value0):
+                        hasher.combine(value0)
+                    case let .additionalPhotosZoomed(value0, _):
+                        hasher.combine(value0)
+                    case let .comments(_, value1):
+                        hasher.combine(value1)
+                    case let .wishmates(value0):
+                        hasher.combine(value0)
+                    case let .boosts(value0):
+                        hasher.combine(value0)
+                    default:
+                        hasher.combine(hashValue)
+                    }
                 }
             }
             """#,
