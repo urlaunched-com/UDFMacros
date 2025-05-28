@@ -223,4 +223,80 @@ final class UDFMacrosTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
+    
+    func testAutoHashableForStruct() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoHashable struct TestStruct {
+                private let id: Int
+                let value: Int
+                let model: Model
+                let modelID: Model.ID
+            }
+            """#,
+            expandedSource: #"""
+            struct TestStruct {
+                private let id: Int
+                let value: Int
+                let model: Model
+                let modelID: Model.ID
+            }
+            
+            extension TestStruct: Hashable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    lhs.id == rhs.id && lhs.value == rhs.value && lhs.modelID == rhs.modelID
+                }
+            
+                static func hash(into hasher: inout Hasher) {
+                    hasher.combine(id)
+                    hasher.combine(value)
+                    hasher.combine(modelID)
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
+    func testAutoHashableForClass() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoHashable class TestClass {
+                private let id: Int
+                let value: Int
+                let model: Model
+                let modelID: Model.ID
+            }
+            """#,
+            expandedSource: #"""
+            class TestClass {
+                private let id: Int
+                let value: Int
+                let model: Model
+                let modelID: Model.ID
+            }
+            
+            extension TestClass: Hashable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    lhs.id == rhs.id && lhs.value == rhs.value && lhs.modelID == rhs.modelID
+                }
+            
+                static func hash(into hasher: inout Hasher) {
+                    hasher.combine(id)
+                    hasher.combine(value)
+                    hasher.combine(modelID)
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
 }

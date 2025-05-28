@@ -84,12 +84,12 @@ public struct AutoHashableMacro: ExtensionMacro {
             // Handle struct: compare stored properties
             // Collect all variable declarations in the struct
             let vars = structDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try equatableFor(vars: vars, type: type)
+            return try hashableFor(vars: vars, type: type)
         } else if let classDecl = declaration.as(ClassDeclSyntax.self) {
             // Handle class: compare stored properties
             // Collect all variable declarations in the class
             let vars = classDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try equatableFor(vars: vars, type: type)
+            return try hashableFor(vars: vars, type: type)
         } else if let enumDecl = declaration.as(EnumDeclSyntax.self) {
             // Collect all member declarations of the enum
             let members = enumDecl.memberBlock.members
@@ -155,7 +155,7 @@ private extension String {
 }
 
 private extension ExtensionMacro {
-    static func equatableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol) throws -> [ExtensionDeclSyntax] {
+    static func equalizeFunction(for vars: [VariableDeclSyntax]) throws -> FunctionDeclSyntax {
         let properties: [(name: String, type: String)] = vars.flatMap { varDecl in
             varDecl.bindings.compactMap { binding in
                 guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { return nil }
@@ -170,15 +170,54 @@ private extension ExtensionMacro {
             prop.type.isEquatableByName ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
         }
         let body = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
-        // Build the static == function using SwiftSyntaxBuilder
-        let function = try FunctionDeclSyntax("static func ==(lhs: Self, rhs: Self) -> Bool") {
+        // Return the static == function using SwiftSyntaxBuilder
+        return try FunctionDeclSyntax("static func ==(lhs: Self, rhs: Self) -> Bool") {
             StmtSyntax("\(raw: body)")
         }
-        // Create the extension embedding the function
+    }
+    
+    static func hashableFunction(for vars: [VariableDeclSyntax]) throws -> FunctionDeclSyntax {
+        let properties: [(name: String, type: String)] = vars.flatMap { varDecl in
+            varDecl.bindings.compactMap { binding in
+                guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { return nil }
+                let name = pattern.identifier.text
+                let typeName = binding.typeAnnotation?.type.description
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return (name: name, type: typeName)
+            }
+        }
+        // Build comparisons for Equatable properties
+        let hashes = properties.compactMap { prop in
+            prop.type.isEquatableByName ? StmtSyntax(stringLiteral: "hasher.combine(\(prop.name))\n") : nil
+        }
+
+        // Return the static hash function using SwiftSyntaxBuilder
+        return try FunctionDeclSyntax("static func hash(into hasher: inout Hasher)") {
+            hashes
+        }
+    }
+    
+    static func equatableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol) throws -> [ExtensionDeclSyntax] {
+        let function = try equalizeFunction(for: vars)
         let extDecl: DeclSyntax =
         """
         extension \(type.trimmed): Equatable {
             \(raw: function.description)
+        }
+        """
+        return [extDecl.cast(ExtensionDeclSyntax.self)]
+    }
+    
+    static func hashableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol) throws -> [ExtensionDeclSyntax] {
+        let equalizeFunction = try equalizeFunction(for: vars)
+        let hashFunction = try hashableFunction(for: vars)
+        
+        // Create the extension embedding the function
+        let extDecl: DeclSyntax =
+        """
+        extension \(type.trimmed): Hashable {
+            \(raw: equalizeFunction.description)\n
+            \(raw: hashFunction.description)
         }
         """
         return [extDecl.cast(ExtensionDeclSyntax.self)]
