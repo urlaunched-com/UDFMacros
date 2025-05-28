@@ -38,50 +38,7 @@ public struct AutoEquatableMacro: ExtensionMacro {
         let elements = caseDecl.flatMap { $0.elements }
         
         // Build each switch arm for the `==` implementation
-        let arms: String = elements.map { element in
-            // Get the name of this enum case
-            let caseName = element.name.text
-            // If the case has associated values, generate bindings and comparisons
-            if let assoc = element.parameterClause, !assoc.parameters.isEmpty {
-                // Enumerate associated parameters for indexing
-                let enumeratedParameters = assoc.parameters.enumerated()
-                // Generate binding identifiers for lhs values where type is Equatable
-                let lhsBindings = enumeratedParameters.map { index, param in
-                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return typeName.isEquatableByName ? "lhs\(index)" : "_"
-                }
-                
-                // Generate binding identifiers for rhs values similarly
-                let rhsBindings = enumeratedParameters.map { index, param in
-                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return typeName.isEquatableByName ? "rhs\(index)" : "_"
-                }
-                
-                // Create the tuple pattern for lhs bindings
-                let lhsPattern = lhsBindings.joined(separator: ", ")
-                // Create the tuple pattern for rhs bindings
-                let rhsPattern = rhsBindings.joined(separator: ", ")
-
-                // Build comparison expressions for each Equatable associated value
-                let comparisons = enumeratedParameters .compactMap { index, param in
-                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
-                    
-                    if typeName.isEquatableByName {
-                        return "\(lhsBindings[index]) == \(rhsBindings[index])"
-                    }
-                    
-                    return nil
-                }
-                
-                // Determine the overall condition: true if no comparisons, else join with &&
-                let condition = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
-                // Return this switch arm for the case with its comparison logic
-                return "case let (.\(caseName)(\(lhsPattern)), .\(caseName)(\(rhsPattern))): \(condition)"
-            } else {
-                // No associated values: same-case implies equality
-                return "case (.\(caseName), .\(caseName)): true"
-            }
-        }.joined(separator: "\n")
+        let equatableArms = equatableArmsFor(enumElements: elements)
         
         // Construct the Equatable extension for the enum
         let ext: DeclSyntax =
@@ -89,7 +46,7 @@ public struct AutoEquatableMacro: ExtensionMacro {
               extension \(type.trimmed): Equatable {
                   static func == (lhs: Self, rhs: Self) -> Bool {
                       switch (lhs, rhs) {
-                      \(raw: arms)
+                      \(raw: equatableArms)
                       default: false
                       }
                   }
@@ -120,6 +77,57 @@ private extension String {
         }
     }
 }
+
+private extension ExtensionMacro {
+    static func equatableArmsFor(enumElements: [EnumCaseElementListSyntax.Element]) -> String {
+        // Build each switch arm for the `==` implementation
+        enumElements.map { element in
+            // Get the name of this enum case
+            let caseName = element.name.text
+            // If the case has associated values, generate bindings and comparisons
+            if let assoc = element.parameterClause, !assoc.parameters.isEmpty {
+                // Enumerate associated parameters for indexing
+                let enumeratedParameters = assoc.parameters.enumerated()
+                // Generate binding identifiers for lhs values where type is Equatable
+                let lhsBindings = enumeratedParameters.map { index, param in
+                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return typeName.isEquatableByName ? "lhs\(index)" : "_"
+                }
+                
+                // Generate binding identifiers for rhs values similarly
+                let rhsBindings = enumeratedParameters.map { index, param in
+                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return typeName.isEquatableByName ? "rhs\(index)" : "_"
+                }
+                
+                // Create the tuple pattern for lhs bindings
+                let lhsPattern = lhsBindings.joined(separator: ", ")
+                // Create the tuple pattern for rhs bindings
+                let rhsPattern = rhsBindings.joined(separator: ", ")
+
+                // Build comparison expressions for each Equatable associated value
+                let comparisons = enumeratedParameters.compactMap { index, param in
+                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    if typeName.isEquatableByName {
+                        return "\(lhsBindings[index]) == \(rhsBindings[index])"
+                    }
+                    
+                    return nil
+                }
+                
+                // Determine the overall condition: true if no comparisons, else join with &&
+                let condition = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
+                // Return this switch arm for the case with its comparison logic
+                return "case let (.\(caseName)(\(lhsPattern)), .\(caseName)(\(rhsPattern))): \(condition)"
+            } else {
+                // No associated values: same-case implies equality
+                return "case (.\(caseName), .\(caseName)): true"
+            }
+        }.joined(separator: "\n")
+    }
+}
+
 
 @main
 struct UDFMacrosPlugin: CompilerPlugin {
