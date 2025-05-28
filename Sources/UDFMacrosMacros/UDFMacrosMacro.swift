@@ -111,8 +111,8 @@ public struct AutoHashableMacro: ExtensionMacro {
             
             let hashableArms = hashableArmsFor(enumElements: elements)
             
-            let hashFunction = try FunctionDeclSyntax("static func hash(into hasher: inout Hasher)") {
-                StmtSyntax("switch (lhs, rhs) {")
+            let hashFunction = try FunctionDeclSyntax("func hash(into hasher: inout Hasher)") {
+                StmtSyntax("switch self {")
                 hashableArms
                 StmtSyntax("default: hasher.combine(hashValue)")
                 StmtSyntax("}")
@@ -155,7 +155,7 @@ private extension String {
 }
 
 private extension ExtensionMacro {
-    static func equalizeFunction(for vars: [VariableDeclSyntax]) throws -> FunctionDeclSyntax {
+    static func equalizeFunction(for vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol) throws -> FunctionDeclSyntax {
         let properties: [(name: String, type: String)] = vars.flatMap { varDecl in
             varDecl.bindings.compactMap { binding in
                 guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { return nil }
@@ -171,7 +171,7 @@ private extension ExtensionMacro {
         }
         let body = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
         // Return the static == function using SwiftSyntaxBuilder
-        return try FunctionDeclSyntax("static func ==(lhs: Self, rhs: Self) -> Bool") {
+        return try FunctionDeclSyntax("static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
             StmtSyntax("\(raw: body)")
         }
     }
@@ -192,13 +192,13 @@ private extension ExtensionMacro {
         }
 
         // Return the static hash function using SwiftSyntaxBuilder
-        return try FunctionDeclSyntax("static func hash(into hasher: inout Hasher)") {
+        return try FunctionDeclSyntax("func hash(into hasher: inout Hasher)") {
             hashes
         }
     }
     
     static func equatableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol) throws -> [ExtensionDeclSyntax] {
-        let function = try equalizeFunction(for: vars)
+        let function = try equalizeFunction(for: vars, type: type)
         let extDecl: DeclSyntax =
         """
         extension \(type.trimmed): Equatable {
@@ -209,7 +209,7 @@ private extension ExtensionMacro {
     }
     
     static func hashableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol) throws -> [ExtensionDeclSyntax] {
-        let equalizeFunction = try equalizeFunction(for: vars)
+        let equalizeFunction = try equalizeFunction(for: vars, type: type)
         let hashFunction = try hashableFunction(for: vars)
         
         // Create the extension embedding the function

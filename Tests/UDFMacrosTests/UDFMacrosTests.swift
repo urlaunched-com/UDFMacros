@@ -98,7 +98,7 @@ final class UDFMacrosTests: XCTestCase {
             }
             
             extension TestStruct: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
                     lhs.id == rhs.id && lhs.value == rhs.value && lhs.modelID == rhs.modelID
                 }
             }
@@ -130,7 +130,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension TestClass: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: TestClass, rhs: TestClass) -> Bool {
                     lhs.id == rhs.id && lhs.value == rhs.value && lhs.modelID == rhs.modelID
                 }
             }
@@ -197,8 +197,8 @@ final class UDFMacrosTests: XCTestCase {
                     }
                 }
 
-                static func hash(into hasher: inout Hasher) {
-                    switch (lhs, rhs) {
+                func hash(into hasher: inout Hasher) {
+                    switch self {
                     case let .analytics(value0):
                         hasher.combine(value0)
                     case let .addPhotoFeedback(value0):
@@ -244,11 +244,11 @@ final class UDFMacrosTests: XCTestCase {
             }
             
             extension TestStruct: Hashable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
                     lhs.id == rhs.id && lhs.value == rhs.value && lhs.modelID == rhs.modelID
                 }
             
-                static func hash(into hasher: inout Hasher) {
+                func hash(into hasher: inout Hasher) {
                     hasher.combine(id)
                     hasher.combine(value)
                     hasher.combine(modelID)
@@ -282,11 +282,11 @@ final class UDFMacrosTests: XCTestCase {
             }
             
             extension TestClass: Hashable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: TestClass, rhs: TestClass) -> Bool {
                     lhs.id == rhs.id && lhs.value == rhs.value && lhs.modelID == rhs.modelID
                 }
             
-                static func hash(into hasher: inout Hasher) {
+                func hash(into hasher: inout Hasher) {
                     hasher.combine(id)
                     hasher.combine(value)
                     hasher.combine(modelID)
