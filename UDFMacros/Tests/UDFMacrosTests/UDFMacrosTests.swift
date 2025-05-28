@@ -14,7 +14,7 @@ let testMacros: [String: Macro.Type] = [
 #endif
 
 final class UDFMacrosTests: XCTestCase {
-    func testAutoEquatableMacro() throws {
+    func testAutoEquatableForEnum() throws {
         #if canImport(UDFMacrosMacros)
         assertMacroExpansion(
             #"""
@@ -53,6 +53,46 @@ final class UDFMacrosTests: XCTestCase {
                     }
                 }
             }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
+    func testAutoEquatableForStruct() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoEquatable struct TestStruct {
+                let id: Int
+                let value: Int
+                let model: Model
+                let modelID: Model.ID
+            }
+            """#,
+            expandedSource: #"""
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
+    func testAutoEquatableForClass() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoEquatable class TestClass {
+                let id: Int
+                let value: Int
+                let model: Model
+                let modelID: Model.ID
+            }
+            """#,
+            expandedSource: #"""
             """#,
             macros: testMacros
         )

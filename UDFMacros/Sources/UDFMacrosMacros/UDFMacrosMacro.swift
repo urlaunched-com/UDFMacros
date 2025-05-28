@@ -28,33 +28,93 @@ public struct AutoEquatableMacro: ExtensionMacro {
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
         // Ensure we're attached to an enum; otherwise, nothing to generate
-        guard let enumDecl = declaration.as(EnumDeclSyntax.self) else { return [] }
-        
-        // Collect all member declarations of the enum
-        let members = enumDecl.memberBlock.members
-        // Filter members to only enum case declarations
-        let caseDecl = members.compactMap { $0.decl.as(EnumCaseDeclSyntax.self) }
-        // Flatten the cases to get all individual enum elements
-        let elements = caseDecl.flatMap { $0.elements }
-        
-        // Build each switch arm for the `==` implementation
-        let equatableArms = equatableArmsFor(enumElements: elements)
-        
-        // Construct the Equatable extension for the enum
-        let ext: DeclSyntax =
-              """
-              extension \(type.trimmed): Equatable {
-                  static func == (lhs: Self, rhs: Self) -> Bool {
-                      switch (lhs, rhs) {
-                      \(raw: equatableArms)
-                      default: false
+        if let structDecl = declaration.as(StructDeclSyntax.self) {
+            // Handle struct: compare stored properties
+            // Collect all variable declarations in the struct
+            let vars = structDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
+            // Extract property names and types
+            let properties: [(name: String, type: String)] = vars.flatMap { varDecl in
+                varDecl.bindings.compactMap { binding in
+                    guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { return nil }
+                    let name = pattern.identifier.text
+                    let typeName = binding.typeAnnotation?.type.description
+                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    return (name: name, type: typeName)
+                }
+            }
+            // Build comparisons for Equatable properties
+            let comparisons = properties.compactMap { prop in
+                prop.type.isEquatableByName ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
+            }
+            let body = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
+            // Generate extension
+            let ext: DeclSyntax =
+            """
+            extension \(type.trimmed): Equatable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    \(raw: body)
+                }
+            }
+            """
+            return [ext.cast(ExtensionDeclSyntax.self)]
+        } else if let classDecl = declaration.as(ClassDeclSyntax.self) {
+            // Handle class: compare stored properties
+            // Collect all variable declarations in the class
+            let vars = classDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
+            // Extract property names and types
+            let properties: [(name: String, type: String)] = vars.flatMap { varDecl in
+                varDecl.bindings.compactMap { binding in
+                    guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { return nil }
+                    let name = pattern.identifier.text
+                    let typeName = binding.typeAnnotation?.type.description
+                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    return (name: name, type: typeName)
+                }
+            }
+            // Build comparisons for Equatable properties
+            let comparisons = properties.compactMap { prop in
+                prop.type.isEquatableByName ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
+            }
+            let body = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
+            // Generate extension
+            let ext: DeclSyntax =
+            """
+            extension \(type.trimmed): Equatable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    \(raw: body)
+                }
+            }
+            """
+            return [ext.cast(ExtensionDeclSyntax.self)]
+        } else if let enumDecl = declaration.as(EnumDeclSyntax.self) {
+            // Collect all member declarations of the enum
+            let members = enumDecl.memberBlock.members
+            // Filter members to only enum case declarations
+            let caseDecl = members.compactMap { $0.decl.as(EnumCaseDeclSyntax.self) }
+            // Flatten the cases to get all individual enum elements
+            let elements = caseDecl.flatMap { $0.elements }
+            
+            // Build each switch arm for the `==` implementation
+            let equatableArms = equatableArmsFor(enumElements: elements)
+            
+            // Construct the Equatable extension for the enum
+            let ext: DeclSyntax =
+                  """
+                  extension \(type.trimmed): Equatable {
+                      static func == (lhs: Self, rhs: Self) -> Bool {
+                          switch (lhs, rhs) {
+                          \(raw: equatableArms)
+                          default: false
+                          }
                       }
                   }
-              }
-              """
-        
-        // Return the generated extension declaration to the compiler plugin
-        return [ext.cast(ExtensionDeclSyntax.self)]
+                  """
+            
+            // Return the generated extension declaration to the compiler plugin
+            return [ext.cast(ExtensionDeclSyntax.self)]
+        } else {
+            return []
+        }
     }
 }
 
