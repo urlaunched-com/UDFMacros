@@ -146,7 +146,7 @@ private extension String {
         }
         
         switch self {
-        case "S3MediaResource", "Int", "String", "Bool", "Double", "Float":
+        case "S3MediaResource", "Int", "String", "Bool", "Double", "Float", "UUID":
             return true
         default:
             return false
