@@ -71,22 +71,36 @@ public struct AutoEquatableMacro: ExtensionMacro {
     }
 }
 
-/// String utilities to determine if a type name should be treated as Equatable.
-private extension String {
-    /// Checks if the string (type name) indicates Equatable conformance by name.
+/// TypeAnalyzer provides simplified type analysis using compiler-based verification.
+/// 
+/// This approach eliminates all hardcoded type checking and instead generates
+/// equality comparisons for all types, letting the Swift compiler determine
+/// if types are actually Equatable at compile time.
+private struct TypeAnalyzer {
+    /// Determines if a type should be included in equality comparison.
     ///
-    /// Returns `true` if the type name has a `.ID` suffix, is `S3MediaResource`,
-    /// or is one of the known Equatable primitives (`Int`, `String`, etc.).
-    var isEquatableByName: Bool {
-        if hasSuffix(".ID") {
-            return true
-        }
-        
-        switch self {
-        case "S3MediaResource", "Int", "String", "Bool", "Double", "Float":
-            return true
-        default:
+    /// This simplified approach attempts equality for all types except those
+    /// explicitly known to be problematic, letting the compiler handle verification.
+    ///
+    /// - Parameter typeSyntax: The type syntax node to analyze
+    /// - Returns: `true` if the type should be included in equality comparison
+    static func shouldIncludeInEquality(_ typeSyntax: TypeSyntax) -> Bool {
+        let typeDescription = typeSyntax.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        return shouldIncludeInEquality(typeDescription)
+    }
+    
+    /// Determines if a type name should be included in equality comparison.
+    ///
+    /// - Parameter typeName: The type name string to analyze
+    /// - Returns: `true` if the type should be included in equality comparison
+    static func shouldIncludeInEquality(_ typeName: String) -> Bool {
+        // Only exclude types that are definitively known to be problematic
+        switch typeName {
+        case "Void", "Never":
             return false
+        default:
+            // For everything else: attempt equality and let the compiler decide
+            return true
         }
     }
 }
@@ -102,9 +116,9 @@ private extension ExtensionMacro {
                 return (name: name, type: typeName)
             }
         }
-        // Build comparisons for Equatable properties
+        // Build comparisons for all properties (let compiler verify Equatable conformance)
         let comparisons = properties.compactMap { prop in
-            prop.type.isEquatableByName ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
+            TypeAnalyzer.shouldIncludeInEquality(prop.type) ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
         }
         let body = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
         // Build the static == function using SwiftSyntaxBuilder
@@ -130,16 +144,16 @@ private extension ExtensionMacro {
             if let assoc = element.parameterClause, !assoc.parameters.isEmpty {
                 // Enumerate associated parameters for indexing
                 let enumeratedParameters = assoc.parameters.enumerated()
-                // Generate binding identifiers for lhs values where type is Equatable
+                // Generate binding identifiers for all values (let compiler verify Equatable conformance)
                 let lhsBindings = enumeratedParameters.map { index, param in
                     let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return typeName.isEquatableByName ? "lhs\(index)" : "_"
+                    return TypeAnalyzer.shouldIncludeInEquality(typeName) ? "lhs\(index)" : "_"
                 }
                 
                 // Generate binding identifiers for rhs values similarly
                 let rhsBindings = enumeratedParameters.map { index, param in
                     let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return typeName.isEquatableByName ? "rhs\(index)" : "_"
+                    return TypeAnalyzer.shouldIncludeInEquality(typeName) ? "rhs\(index)" : "_"
                 }
                 
                 // Create the tuple pattern for lhs bindings
@@ -147,11 +161,11 @@ private extension ExtensionMacro {
                 // Create the tuple pattern for rhs bindings
                 let rhsPattern = rhsBindings.joined(separator: ", ")
 
-                // Build comparison expressions for each Equatable associated value
+                // Build comparison expressions for all associated values (let compiler verify Equatable conformance)
                 let comparisons = enumeratedParameters.compactMap { index, param in
                     let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
                     
-                    if typeName.isEquatableByName {
+                    if TypeAnalyzer.shouldIncludeInEquality(typeName) {
                         return "\(lhsBindings[index]) == \(rhsBindings[index])"
                     }
                     
