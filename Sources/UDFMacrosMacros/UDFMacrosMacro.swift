@@ -99,9 +99,32 @@ private struct TypeAnalyzer {
         case "Void", "Never":
             return false
         default:
+            // Check if this is a closure type (function type)
+            if isClosureType(typeName) {
+                return false
+            }
             // For everything else: attempt equality and let the compiler decide
             return true
         }
+    }
+    
+    /// Determines if a type string represents a closure/function type.
+    ///
+    /// - Parameter typeName: The type name string to analyze
+    /// - Returns: `true` if the type is a closure/function type
+    private static func isClosureType(_ typeName: String) -> Bool {
+        let trimmed = typeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Remove @escaping, @autoclosure, etc. attributes
+        let withoutAttributes = trimmed.replacingOccurrences(of: "@escaping ", with: "")
+            .replacingOccurrences(of: "@autoclosure ", with: "")
+            .replacingOccurrences(of: "@Sendable ", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check for function type syntax: contains -> with parentheses
+        // Examples: () -> Void, (Int) -> String, (String, Int) -> Bool
+        return withoutAttributes.contains("->") && 
+               (withoutAttributes.hasPrefix("(") || withoutAttributes.contains("("))
     }
 }
 
