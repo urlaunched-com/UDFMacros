@@ -741,4 +741,141 @@ final class UDFMacrosTests: XCTestCase {
         throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
+    
+    func testAutoEquatableIgnoresClosures() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoEquatable enum ClosureEnum {
+                case withSimpleClosure(() -> Void)
+                case withParameterClosure((Int) -> String)
+                case withMultiParamClosure((Int, String) -> Bool)
+                case withEscapingClosure(@escaping () -> Void)
+                case withEscapingParameterClosure(@escaping (String) -> Int)
+                case withAutoclosure(@autoclosure () -> String)
+                case withSendableClosure(@Sendable () -> Void)
+                case withComplexClosure((Int, String) -> (Bool, Double))
+                case withMixedTypes(id: Int, callback: () -> Void, name: String)
+                case withMultipleMixed(Int, (String) -> Bool, Double, @escaping () -> Void)
+            }
+            """#,
+            expandedSource: #"""
+            enum ClosureEnum {
+                case withSimpleClosure(() -> Void)
+                case withParameterClosure((Int) -> String)
+                case withMultiParamClosure((Int, String) -> Bool)
+                case withEscapingClosure(@escaping () -> Void)
+                case withEscapingParameterClosure(@escaping (String) -> Int)
+                case withAutoclosure(@autoclosure () -> String)
+                case withSendableClosure(@Sendable () -> Void)
+                case withComplexClosure((Int, String) -> (Bool, Double))
+                case withMixedTypes(id: Int, callback: () -> Void, name: String)
+                case withMultipleMixed(Int, (String) -> Bool, Double, @escaping () -> Void)
+            }
+
+            extension ClosureEnum: Equatable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    switch (lhs, rhs) {
+                    case let (.withSimpleClosure(_), .withSimpleClosure(_)):
+                        true
+                    case let (.withParameterClosure(_), .withParameterClosure(_)):
+                        true
+                    case let (.withMultiParamClosure(_), .withMultiParamClosure(_)):
+                        true
+                    case let (.withEscapingClosure(_), .withEscapingClosure(_)):
+                        true
+                    case let (.withEscapingParameterClosure(_), .withEscapingParameterClosure(_)):
+                        true
+                    case let (.withAutoclosure(_), .withAutoclosure(_)):
+                        true
+                    case let (.withSendableClosure(_), .withSendableClosure(_)):
+                        true
+                    case let (.withComplexClosure(_), .withComplexClosure(_)):
+                        true
+                    case let (.withMixedTypes(lhs0, _, lhs2), .withMixedTypes(rhs0, _, rhs2)):
+                        lhs0 == rhs0 && lhs2 == rhs2
+                    case let (.withMultipleMixed(lhs0, _, lhs2, _), .withMultipleMixed(rhs0, _, rhs2, _)):
+                        lhs0 == rhs0 && lhs2 == rhs2
+                    default:
+                        false
+                    }
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
+    func testAutoEquatableIgnoresClosuresInStructs() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoEquatable struct ClosureStruct {
+                let id: Int
+                let name: String
+                let onTap: () -> Void
+                let onComplete: @escaping (Bool) -> Void
+                let transform: (String) -> Int
+                let validator: @Sendable (String) -> Bool
+            }
+            """#,
+            expandedSource: #"""
+            struct ClosureStruct {
+                let id: Int
+                let name: String
+                let onTap: () -> Void
+                let onComplete: @escaping (Bool) -> Void
+                let transform: (String) -> Int
+                let validator: @Sendable (String) -> Bool
+            }
+            
+            extension ClosureStruct: Equatable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    lhs.id == rhs.id && lhs.name == rhs.name
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
+    func testAutoEquatableIgnoresClosuresInClasses() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoEquatable class ClosureClass {
+                let id: Int
+                let completion: @escaping () -> Void
+                let handler: (String) -> Bool
+                let processor: @Sendable (Data) -> String
+                var counter: Int
+            }
+            """#,
+            expandedSource: #"""
+            class ClosureClass {
+                let id: Int
+                let completion: @escaping () -> Void
+                let handler: (String) -> Bool
+                let processor: @Sendable (Data) -> String
+                var counter: Int
+            }
+
+            extension ClosureClass: Equatable {
+                static func ==(lhs: Self, rhs: Self) -> Bool {
+                    lhs.id == rhs.id && lhs.counter == rhs.counter
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
 }
