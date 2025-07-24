@@ -79,12 +79,18 @@ public struct AutoEquatableMacro: ExtensionMacro {
 private struct TypeAnalyzer {
     /// Determines if a type should be included in equality comparison.
     ///
-    /// This simplified approach attempts equality for all types except those
-    /// explicitly known to be problematic, letting the compiler handle verification.
+    /// This approach uses SwiftSyntax's type system to detect function types
+    /// and other problematic types, avoiding fragile string parsing.
     ///
     /// - Parameter typeSyntax: The type syntax node to analyze
     /// - Returns: `true` if the type should be included in equality comparison
     static func shouldIncludeInEquality(_ typeSyntax: TypeSyntax) -> Bool {
+        // Use SwiftSyntax-based closure detection
+        if isClosureType(typeSyntax) {
+            return false
+        }
+        
+        // Fall back to string-based analysis for other types
         let typeDescription = typeSyntax.description.trimmingCharacters(in: .whitespacesAndNewlines)
         return shouldIncludeInEquality(typeDescription)
     }
@@ -99,49 +105,47 @@ private struct TypeAnalyzer {
         case "Void", "Never":
             return false
         default:
-            // Check if this is a closure type (function type)
-            if isClosureType(typeName) {
-                return false
-            }
             // For everything else: attempt equality and let the compiler decide
             return true
         }
     }
     
-    /// Determines if a type string represents a closure/function type.
+    /// Determines if a type represents a closure/function type using SwiftSyntax.
     ///
-    /// - Parameter typeName: The type name string to analyze
+    /// This approach uses SwiftSyntax's type system to detect function types
+    /// and handles attributed types (like @escaping, @autoclosure, @Sendable) 
+    /// automatically without hardcoding specific attributes.
+    ///
+    /// - Parameter typeSyntax: The type syntax node to analyze
     /// - Returns: `true` if the type is a closure/function type
-    private static func isClosureType(_ typeName: String) -> Bool {
-        let trimmed = typeName.trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func isClosureType(_ typeSyntax: TypeSyntax) -> Bool {
+        // Direct function type check
+        if typeSyntax.is(FunctionTypeSyntax.self) {
+            return true
+        }
         
-        // Remove @escaping, @autoclosure, etc. attributes
-        let withoutAttributes = trimmed.replacingOccurrences(of: "@escaping ", with: "")
-            .replacingOccurrences(of: "@autoclosure ", with: "")
-            .replacingOccurrences(of: "@Sendable ", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Handle attributed types (e.g., @escaping, @autoclosure, @Sendable)
+        if let attributedType = typeSyntax.as(AttributedTypeSyntax.self) {
+            return isClosureType(attributedType.baseType)
+        }
         
-        // Check for function type syntax: contains -> with parentheses
-        // Examples: () -> Void, (Int) -> String, (String, Int) -> Bool
-        return withoutAttributes.contains("->") && 
-               (withoutAttributes.hasPrefix("(") || withoutAttributes.contains("("))
+        return false
     }
 }
 
 private extension ExtensionMacro {
     static func equatableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol) throws -> [ExtensionDeclSyntax] {
-        let properties: [(name: String, type: String)] = vars.flatMap { varDecl in
+        let properties: [(name: String, typeSyntax: TypeSyntax)] = vars.flatMap { varDecl in
             varDecl.bindings.compactMap { binding in
-                guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { return nil }
+                guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+                      let typeAnnotation = binding.typeAnnotation else { return nil }
                 let name = pattern.identifier.text
-                let typeName = binding.typeAnnotation?.type.description
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                return (name: name, type: typeName)
+                return (name: name, typeSyntax: typeAnnotation.type)
             }
         }
-        // Build comparisons for all properties (let compiler verify Equatable conformance)
+        // Build comparisons for all properties using TypeSyntax-based analysis
         let comparisons = properties.compactMap { prop in
-            TypeAnalyzer.shouldIncludeInEquality(prop.type) ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
+            TypeAnalyzer.shouldIncludeInEquality(prop.typeSyntax) ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
         }
         let body = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
         // Build the static == function using SwiftSyntaxBuilder
@@ -167,16 +171,14 @@ private extension ExtensionMacro {
             if let assoc = element.parameterClause, !assoc.parameters.isEmpty {
                 // Enumerate associated parameters for indexing
                 let enumeratedParameters = assoc.parameters.enumerated()
-                // Generate binding identifiers for all values (let compiler verify Equatable conformance)
+                // Generate binding identifiers for all values using TypeSyntax-based analysis
                 let lhsBindings = enumeratedParameters.map { index, param in
-                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return TypeAnalyzer.shouldIncludeInEquality(typeName) ? "lhs\(index)" : "_"
+                    return TypeAnalyzer.shouldIncludeInEquality(param.type) ? "lhs\(index)" : "_"
                 }
                 
-                // Generate binding identifiers for rhs values similarly
+                // Generate binding identifiers for rhs values similarly  
                 let rhsBindings = enumeratedParameters.map { index, param in
-                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return TypeAnalyzer.shouldIncludeInEquality(typeName) ? "rhs\(index)" : "_"
+                    return TypeAnalyzer.shouldIncludeInEquality(param.type) ? "rhs\(index)" : "_"
                 }
                 
                 // Create the tuple pattern for lhs bindings
@@ -184,11 +186,9 @@ private extension ExtensionMacro {
                 // Create the tuple pattern for rhs bindings
                 let rhsPattern = rhsBindings.joined(separator: ", ")
 
-                // Build comparison expressions for all associated values (let compiler verify Equatable conformance)
+                // Build comparison expressions using TypeSyntax-based analysis
                 let comparisons = enumeratedParameters.compactMap { index, param in
-                    let typeName = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
-                    
-                    if TypeAnalyzer.shouldIncludeInEquality(typeName) {
+                    if TypeAnalyzer.shouldIncludeInEquality(param.type) {
                         return "\(lhsBindings[index]) == \(rhsBindings[index])"
                     }
                     
