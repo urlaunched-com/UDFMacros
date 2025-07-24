@@ -45,7 +45,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension TestEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: TestEnum, rhs: TestEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.congratulations(lhs0), .congratulations(rhs0)):
                         lhs0 == rhs0
@@ -240,7 +240,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension TestEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: TestEnum, rhs: TestEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withArrays(lhs0, lhs1), .withArrays(rhs0, rhs1)):
                         lhs0 == rhs0 && lhs1 == rhs1
@@ -293,7 +293,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension MyCustomEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: MyCustomEnum, rhs: MyCustomEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withPrimitives(lhs0, lhs1, lhs2), .withPrimitives(rhs0, rhs1, rhs2)):
                         lhs0 == rhs0 && lhs1 == rhs1 && lhs2 == rhs2
@@ -348,7 +348,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension TestEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: TestEnum, rhs: TestEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withUnknownType(lhs0), .withUnknownType(rhs0)):
                         lhs0 == rhs0
@@ -395,7 +395,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension SimpleEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: SimpleEnum, rhs: SimpleEnum) -> Bool {
                     switch (lhs, rhs) {
                     case (.first, .first):
                         true
@@ -458,7 +458,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension PrimitiveEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: PrimitiveEnum, rhs: PrimitiveEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withInt(lhs0), .withInt(rhs0)):
                         lhs0 == rhs0
@@ -523,7 +523,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension LabeledEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: LabeledEnum, rhs: LabeledEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withSingleLabel(lhs0), .withSingleLabel(rhs0)):
                         lhs0 == rhs0
@@ -572,7 +572,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension NestedEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: NestedEnum, rhs: NestedEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withNestedArrays(lhs0), .withNestedArrays(rhs0)):
                         lhs0 == rhs0
@@ -625,7 +625,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension FoundationEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: FoundationEnum, rhs: FoundationEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withUUID(lhs0), .withUUID(rhs0)):
                         lhs0 == rhs0
@@ -674,7 +674,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension TupleEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: TupleEnum, rhs: TupleEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withTuple2(lhs0), .withTuple2(rhs0)):
                         lhs0 == rhs0
@@ -720,7 +720,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension EdgeCaseEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: EdgeCaseEnum, rhs: EdgeCaseEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withNormalType(lhs0), .withNormalType(rhs0)):
                         lhs0 == rhs0
@@ -775,7 +775,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension ClosureEnum: Equatable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: ClosureEnum, rhs: ClosureEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withSimpleClosure(_), .withSimpleClosure(_)):
                         true
@@ -975,7 +975,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension TestEnum: Hashable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: TestEnum, rhs: TestEnum) -> Bool {
                     switch (lhs, rhs) {
                     case (.simple, .simple):
                         true
@@ -1150,7 +1150,7 @@ final class UDFMacrosTests: XCTestCase {
             }
 
             extension ClosureEnum: Hashable {
-                static func ==(lhs: Self, rhs: Self) -> Bool {
+                static func ==(lhs: ClosureEnum, rhs: ClosureEnum) -> Bool {
                     switch (lhs, rhs) {
                     case let (.withClosure(_), .withClosure(_)):
                         true
