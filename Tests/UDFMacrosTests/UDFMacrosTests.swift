@@ -880,6 +880,73 @@ final class UDFMacrosTests: XCTestCase {
         #endif
     }
     
+    func testAutoEquatableForEnumWithAllClosureEdgeCases() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoEquatable enum ClosureEdgeCasesEnum {
+                case withOptionalClosure(((String) -> Int)?)
+                case withImplicitlyUnwrappedClosure((() -> Void)!)
+                case withNestedClosure(((Int) -> ((String) -> Bool))?)
+                case withThrowingClosure((String) throws -> Int)
+                case withAsyncClosure((String) async -> Int)
+                case withAsyncThrowingClosure((String) async throws -> Int)
+                case withMultipleClosures(
+                    callback1: ((Int) -> Void)?,
+                    value: String,
+                    callback2: (() -> String)?,
+                    count: Int,
+                    callback3: @escaping (Bool) -> Void
+                )
+            }
+            """#,
+            expandedSource: #"""
+            enum ClosureEdgeCasesEnum {
+                case withOptionalClosure(((String) -> Int)?)
+                case withImplicitlyUnwrappedClosure((() -> Void)!)
+                case withNestedClosure(((Int) -> ((String) -> Bool))?)
+                case withThrowingClosure((String) throws -> Int)
+                case withAsyncClosure((String) async -> Int)
+                case withAsyncThrowingClosure((String) async throws -> Int)
+                case withMultipleClosures(
+                    callback1: ((Int) -> Void)?,
+                    value: String,
+                    callback2: (() -> String)?,
+                    count: Int,
+                    callback3: @escaping (Bool) -> Void
+                )
+            }
+
+            extension ClosureEdgeCasesEnum: Equatable {
+                static func ==(lhs: ClosureEdgeCasesEnum, rhs: ClosureEdgeCasesEnum) -> Bool {
+                    switch (lhs, rhs) {
+                    case let (.withOptionalClosure(_), .withOptionalClosure(_)):
+                        true
+                    case let (.withImplicitlyUnwrappedClosure(_), .withImplicitlyUnwrappedClosure(_)):
+                        true
+                    case let (.withNestedClosure(_), .withNestedClosure(_)):
+                        true
+                    case let (.withThrowingClosure(_), .withThrowingClosure(_)):
+                        true
+                    case let (.withAsyncClosure(_), .withAsyncClosure(_)):
+                        true
+                    case let (.withAsyncThrowingClosure(_), .withAsyncThrowingClosure(_)):
+                        true
+                    case let (.withMultipleClosures(_, lhs1, _, lhs3, _), .withMultipleClosures(_, rhs1, _, rhs3, _)):
+                        lhs1 == rhs1 && lhs3 == rhs3
+                    default:
+                        false
+                    }
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
     // MARK: - AutoHashable Tests
     
     func testAutoHashableForStruct() throws {
@@ -1216,6 +1283,93 @@ final class UDFMacrosTests: XCTestCase {
                     hasher.combine(nestedArray)
                     hasher.combine(tuple)
                     hasher.combine(optionalCustom)
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
+    func testAutoHashableForEnumWithAllClosureEdgeCases() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            @AutoHashable enum ClosureEdgeCasesEnum {
+                case withOptionalClosure(((String) -> Int)?)
+                case withImplicitlyUnwrappedClosure((() -> Void)!)
+                case withNestedClosure(((Int) -> ((String) -> Bool))?)
+                case withThrowingClosure((String) throws -> Int)
+                case withAsyncClosure((String) async -> Int)
+                case withAsyncThrowingClosure((String) async throws -> Int)
+                case withMultipleClosures(
+                    callback1: ((Int) -> Void)?,
+                    value: String,
+                    callback2: (() -> String)?,
+                    count: Int,
+                    callback3: @escaping (Bool) -> Void
+                )
+            }
+            """#,
+            expandedSource: #"""
+            enum ClosureEdgeCasesEnum {
+                case withOptionalClosure(((String) -> Int)?)
+                case withImplicitlyUnwrappedClosure((() -> Void)!)
+                case withNestedClosure(((Int) -> ((String) -> Bool))?)
+                case withThrowingClosure((String) throws -> Int)
+                case withAsyncClosure((String) async -> Int)
+                case withAsyncThrowingClosure((String) async throws -> Int)
+                case withMultipleClosures(
+                    callback1: ((Int) -> Void)?,
+                    value: String,
+                    callback2: (() -> String)?,
+                    count: Int,
+                    callback3: @escaping (Bool) -> Void
+                )
+            }
+
+            extension ClosureEdgeCasesEnum: Hashable {
+                static func ==(lhs: ClosureEdgeCasesEnum, rhs: ClosureEdgeCasesEnum) -> Bool {
+                    switch (lhs, rhs) {
+                    case let (.withOptionalClosure(_), .withOptionalClosure(_)):
+                        true
+                    case let (.withImplicitlyUnwrappedClosure(_), .withImplicitlyUnwrappedClosure(_)):
+                        true
+                    case let (.withNestedClosure(_), .withNestedClosure(_)):
+                        true
+                    case let (.withThrowingClosure(_), .withThrowingClosure(_)):
+                        true
+                    case let (.withAsyncClosure(_), .withAsyncClosure(_)):
+                        true
+                    case let (.withAsyncThrowingClosure(_), .withAsyncThrowingClosure(_)):
+                        true
+                    case let (.withMultipleClosures(_, lhs1, _, lhs3, _), .withMultipleClosures(_, rhs1, _, rhs3, _)):
+                        lhs1 == rhs1 && lhs3 == rhs3
+                    default:
+                        false
+                    }
+                }
+                func hash(into hasher: inout Hasher) {
+                    switch self {
+                    case .withOptionalClosure:
+                        hasher.combine("withOptionalClosure")
+                    case .withImplicitlyUnwrappedClosure:
+                        hasher.combine("withImplicitlyUnwrappedClosure")
+                    case .withNestedClosure:
+                        hasher.combine("withNestedClosure")
+                    case .withThrowingClosure:
+                        hasher.combine("withThrowingClosure")
+                    case .withAsyncClosure:
+                        hasher.combine("withAsyncClosure")
+                    case .withAsyncThrowingClosure:
+                        hasher.combine("withAsyncThrowingClosure")
+                    case let .withMultipleClosures(_, value1, _, value3, _):
+                        hasher.combine("withMultipleClosures")
+                        hasher.combine(value1)
+                        hasher.combine(value3)
+                    }
                 }
             }
             """#,

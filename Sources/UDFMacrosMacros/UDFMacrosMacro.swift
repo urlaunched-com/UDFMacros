@@ -190,11 +190,16 @@ private struct TypeAnalyzer {
     ///
     /// This approach uses SwiftSyntax's type system to detect function types
     /// and handles attributed types (like @escaping, @autoclosure, @Sendable) 
-    /// automatically without hardcoding specific attributes.
+    /// and optional types that wrap function types automatically.
     ///
     /// - Parameter typeSyntax: The type syntax node to analyze
     /// - Returns: `true` if the type is a closure/function type
     private static func isClosureType(_ typeSyntax: TypeSyntax) -> Bool {
+        return isClosureTypeRecursive(typeSyntax)
+    }
+    
+    /// Recursively checks if a type is a closure type, handling all wrapper types.
+    private static func isClosureTypeRecursive(_ typeSyntax: TypeSyntax) -> Bool {
         // Direct function type check
         if typeSyntax.is(FunctionTypeSyntax.self) {
             return true
@@ -202,7 +207,27 @@ private struct TypeAnalyzer {
         
         // Handle attributed types (e.g., @escaping, @autoclosure, @Sendable)
         if let attributedType = typeSyntax.as(AttributedTypeSyntax.self) {
-            return isClosureType(attributedType.baseType)
+            return isClosureTypeRecursive(attributedType.baseType)
+        }
+        
+        // Handle optional types that may wrap function types (e.g., ((Double) -> Void)?)
+        if let optionalType = typeSyntax.as(OptionalTypeSyntax.self) {
+            return isClosureTypeRecursive(optionalType.wrappedType)
+        }
+        
+        // Handle tuple types that may represent function types in parentheses
+        // e.g., ((Double) -> Void) is represented as a tuple containing a function
+        if let tupleType = typeSyntax.as(TupleTypeSyntax.self) {
+            // Check if it's a single-element tuple containing a function type
+            if tupleType.elements.count == 1,
+               let firstElement = tupleType.elements.first {
+                return isClosureTypeRecursive(firstElement.type)
+            }
+        }
+        
+        // Handle implicitly unwrapped optional types
+        if let implicitlyUnwrappedOptionalType = typeSyntax.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
+            return isClosureTypeRecursive(implicitlyUnwrappedOptionalType.wrappedType)
         }
         
         return false
