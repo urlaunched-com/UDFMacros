@@ -230,7 +230,23 @@ private struct TypeAnalyzer {
             return isClosureTypeRecursive(implicitlyUnwrappedOptionalType.wrappedType)
         }
         
+        // Handle known Command type aliases (since SwiftSyntax cannot resolve type aliases)
+        // This includes both simple Command types and generic CommandWith<T> types
+        if let identifierType = typeSyntax.as(IdentifierTypeSyntax.self) {
+            return isCommandTypeAlias(identifierType.name.text)
+        }
+        
         return false
+    }
+    
+    /// Checks if a type name matches known Command closure type aliases.
+    private static func isCommandTypeAlias(_ typeName: String) -> Bool {
+        switch typeName {
+        case "Command", "CommandWith", "CommandWith2", "CommandWith3", "CommandWith4", "CommandWith5":
+            return true
+        default:
+            return false
+        }
     }
 }
 

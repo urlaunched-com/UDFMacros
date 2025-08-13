@@ -947,6 +947,65 @@ final class UDFMacrosTests: XCTestCase {
         #endif
     }
     
+    func testAutoEquatableForEnumWithCommandWithTypeAlias() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            public typealias CommandWith<T> = (T) -> Void
+            
+            @AutoEquatable enum RouteEnum {
+                case detailsView(
+                    postID: Post.ID,
+                    isInitiallyInteractive: Bool,
+                    triggerAutoScrollAction: CommandWith<AutoScrollTrigger>
+                )
+                case listView(
+                    categoryID: Category.ID,
+                    onSelectionChanged: CommandWith<Item.ID>,
+                    refreshAction: () -> Void
+                )
+                case simpleView(name: String)
+            }
+            """#,
+            expandedSource: #"""
+            public typealias CommandWith<T> = (T) -> Void
+            
+            enum RouteEnum {
+                case detailsView(
+                    postID: Post.ID,
+                    isInitiallyInteractive: Bool,
+                    triggerAutoScrollAction: CommandWith<AutoScrollTrigger>
+                )
+                case listView(
+                    categoryID: Category.ID,
+                    onSelectionChanged: CommandWith<Item.ID>,
+                    refreshAction: () -> Void
+                )
+                case simpleView(name: String)
+            }
+
+            extension RouteEnum: Equatable {
+                static func ==(lhs: RouteEnum, rhs: RouteEnum) -> Bool {
+                    switch (lhs, rhs) {
+                    case let (.detailsView(lhs0, lhs1, _), .detailsView(rhs0, rhs1, _)):
+                        lhs0 == rhs0 && lhs1 == rhs1
+                    case let (.listView(lhs0, _, _), .listView(rhs0, _, _)):
+                        lhs0 == rhs0
+                    case let (.simpleView(lhs0), .simpleView(rhs0)):
+                        lhs0 == rhs0
+                    default:
+                        false
+                    }
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
     // MARK: - AutoHashable Tests
     
     func testAutoHashableForStruct() throws {
@@ -1369,6 +1428,79 @@ final class UDFMacrosTests: XCTestCase {
                         hasher.combine("withMultipleClosures")
                         hasher.combine(value1)
                         hasher.combine(value3)
+                    }
+                }
+            }
+            """#,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+    
+    func testAutoHashableForEnumWithCommandWithTypeAlias() throws {
+        #if canImport(UDFMacrosMacros)
+        assertMacroExpansion(
+            #"""
+            public typealias CommandWith<T> = (T) -> Void
+            
+            @AutoHashable enum RouteEnum {
+                case detailsView(
+                    postID: Post.ID,
+                    isInitiallyInteractive: Bool,
+                    triggerAutoScrollAction: CommandWith<AutoScrollTrigger>
+                )
+                case listView(
+                    categoryID: Category.ID,
+                    onSelectionChanged: CommandWith<Item.ID>,
+                    refreshAction: () -> Void
+                )
+                case simpleView(name: String)
+            }
+            """#,
+            expandedSource: #"""
+            public typealias CommandWith<T> = (T) -> Void
+            
+            enum RouteEnum {
+                case detailsView(
+                    postID: Post.ID,
+                    isInitiallyInteractive: Bool,
+                    triggerAutoScrollAction: CommandWith<AutoScrollTrigger>
+                )
+                case listView(
+                    categoryID: Category.ID,
+                    onSelectionChanged: CommandWith<Item.ID>,
+                    refreshAction: () -> Void
+                )
+                case simpleView(name: String)
+            }
+
+            extension RouteEnum: Hashable {
+                static func ==(lhs: RouteEnum, rhs: RouteEnum) -> Bool {
+                    switch (lhs, rhs) {
+                    case let (.detailsView(lhs0, lhs1, _), .detailsView(rhs0, rhs1, _)):
+                        lhs0 == rhs0 && lhs1 == rhs1
+                    case let (.listView(lhs0, _, _), .listView(rhs0, _, _)):
+                        lhs0 == rhs0
+                    case let (.simpleView(lhs0), .simpleView(rhs0)):
+                        lhs0 == rhs0
+                    default:
+                        false
+                    }
+                }
+                func hash(into hasher: inout Hasher) {
+                    switch self {
+                    case let .detailsView(value0, value1, _):
+                        hasher.combine("detailsView")
+                        hasher.combine(value0)
+                        hasher.combine(value1)
+                    case let .listView(value0, _, _):
+                        hasher.combine("listView")
+                        hasher.combine(value0)
+                    case let .simpleView(value0):
+                        hasher.combine("simpleView")
+                        hasher.combine(value0)
                     }
                 }
             }
