@@ -78,7 +78,7 @@ public struct SensitiveActionMacro: ExtensionMacro {
       }
       
       if isSensitive(variable: variable) && masked {
-        return #""\#(name): \(String(String(repeating: "*", count: self.\#(name).count)))""#
+        return #""\#(name): *****""#
       } else {
         return #""\#(name): \(self.\#(name))""#
       }
