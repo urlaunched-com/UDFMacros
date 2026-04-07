@@ -411,5 +411,7 @@ struct UDFMacrosPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         AutoEquatableMacro.self,
         AutoHashableMacro.self,
+        SensitiveFieldMacro.self,
+        SensitiveActionMacro.self
     ]
 }
