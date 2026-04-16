@@ -2,6 +2,7 @@ import SwiftCompilerPlugin
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
+import SwiftDiagnostics
 
 public struct SensitiveActionMacro: ExtensionMacro {
   private static let sensitiveAttributeName = "SensitiveField"
@@ -14,6 +15,17 @@ public struct SensitiveActionMacro: ExtensionMacro {
     in context: some MacroExpansionContext
   ) throws -> [ExtensionDeclSyntax] {
     guard let structDecl = declaration.as(StructDeclSyntax.self) else {
+      context.diagnose(Diagnostic(node: Syntax(declaration), message: SensitiveActionDiagnostic.onlyStructsSupported))
+      return []
+    }
+    
+    let conformsToAction = structDecl.inheritanceClause?.inheritedTypes.contains { inheritedType in
+      let name = inheritedType.type.as(IdentifierTypeSyntax.self)?.name.text
+      return name == "Action"
+    } ?? false
+    
+    guard conformsToAction else {
+      context.diagnose(Diagnostic(node: Syntax(node), message: SensitiveActionDiagnostic.mustConformToAction))
       return []
     }
     
@@ -69,20 +81,21 @@ public struct SensitiveActionMacro: ExtensionMacro {
   }
   
   private static func getFieldDescriptions(variables: [VariableDeclSyntax], masked: Bool) -> String? {
-    return variables.compactMap { variable -> String? in
-      guard let name = variable.bindings.first?
-        .pattern.as(IdentifierPatternSyntax.self)?
-        .identifier.text
-      else {
-        return nil
+    let descriptions = variables.flatMap { variable -> [String] in
+      let names = variable.bindings.compactMap {
+        $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text
       }
+      let sensitive = isSensitive(variable: variable)
       
-      if isSensitive(variable: variable) && masked {
-        return #""\#(name): *****""#
-      } else {
-        return #""\#(name): \(self.\#(name))""#
+      return names.map { name in
+        if sensitive && masked {
+          return #""\#(name): *****""#
+        } else {
+          return #""\#(name): \(self.\#(name))""#
+        }
       }
-    }.joined(separator: #" + ", " + "#)
+    }
+    return descriptions.isEmpty ? nil : descriptions.joined(separator: #" + ", " + "#)
   }
   
   private static func propertyStringDeclSyntax(name: String, structName: String, fieldDescriptions: String) -> VariableDeclSyntax {

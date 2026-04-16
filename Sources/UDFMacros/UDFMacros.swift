@@ -12,8 +12,3 @@ public macro SensitiveField() = #externalMacro(module: "UDFMacrosMacros", type: 
 
 @attached(extension, conformances: CustomStringConvertible, SensitiveDataRepresentable,  names: named(description), named(maskedDescription), named(plainDescription))
 public macro SensitiveAction() = #externalMacro(module: "UDFMacrosMacros", type: "SensitiveActionMacro")
-
-public protocol SensitiveDataRepresentable {
-  var maskedDescription: String { get }
-  var plainDescription: String { get }
-}
