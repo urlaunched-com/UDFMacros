@@ -6,7 +6,6 @@ enum TestEnum {
     case last
 }
 
-@AutoHashable
 struct User {
     private let id: Int
     let name: String
