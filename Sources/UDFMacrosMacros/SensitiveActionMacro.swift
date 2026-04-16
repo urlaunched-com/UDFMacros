@@ -35,8 +35,8 @@ public struct SensitiveActionMacro: ExtensionMacro {
       $0.decl.as(VariableDeclSyntax.self)
     }
     
-    let isMaskedDisabled = self.isMaskedDisabled(node: node)
-    let maskedFieldDescriptions = self.getFieldDescriptions(variables: fields, masked: isMaskedDisabled) ?? ""
+    let isMaskedEnabled = self.isMaskedEnabled(node: node)
+    let maskedFieldDescriptions = self.getFieldDescriptions(variables: fields, masked: isMaskedEnabled) ?? ""
     let plainFieldDescriptions = self.getFieldDescriptions(variables: fields, masked: false) ?? ""
     
     let descriptionDecl = propertyStringDeclSyntax(
@@ -72,20 +72,20 @@ public struct SensitiveActionMacro: ExtensionMacro {
     return [ext.cast(ExtensionDeclSyntax.self)]
   }
   
-  private static func isMaskedDisabled(node: AttributeSyntax) -> Bool {
+  private static func isMaskedEnabled(node: AttributeSyntax) -> Bool {
     guard
       let args = node.arguments?.as(LabeledExprListSyntax.self),
       let option = args.first?.expression.as(MemberAccessExprSyntax.self)?.declName.baseName.text
     else {
-      return false
+      return true
     }
       
     let shouldDisbaleMaskingFields = SensitiveActionOption(rawValue: option) == .disabledInDebug
     
 #if DEBUG
-    return shouldDisbaleMaskingFields
+    return !shouldDisbaleMaskingFields
 #else
-    return false
+    return true
 #endif
   }
   
