@@ -8,17 +8,14 @@ import SwiftDiagnostics
 import SwiftSyntax
 
 public enum SensitiveActionDiagnostic: DiagnosticMessage {
-    case onlyStructsSupported
-    case mustConformToAction
+    case unsupportedType
 
     public var severity: DiagnosticSeverity { .error }
     
     public var message: String {
         switch self {
-        case .onlyStructsSupported:
-            return "@SensitiveAction can only be applied to a struct."
-        case .mustConformToAction:
-            return "The type must conform to 'Action' to use this macro."
+        case .unsupportedType:
+            return "This macro can only be applied to 'struct', 'class', or 'actor' declarations."
         }
     }
     

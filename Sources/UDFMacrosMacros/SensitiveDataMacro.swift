@@ -4,7 +4,7 @@ import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 import SwiftDiagnostics
 
-public struct SensitiveActionMacro: ExtensionMacro {
+public struct SensitiveDataMacro: ExtensionMacro {
   private static let sensitiveAttributeName = "SensitiveField"
   
   public static func expansion(
@@ -14,24 +14,14 @@ public struct SensitiveActionMacro: ExtensionMacro {
     conformingTo protocols: [TypeSyntax],
     in context: some MacroExpansionContext
   ) throws -> [ExtensionDeclSyntax] {
-    guard let structDecl = declaration.as(StructDeclSyntax.self) else {
-      context.diagnose(Diagnostic(node: Syntax(declaration), message: SensitiveActionDiagnostic.onlyStructsSupported))
+    guard isSupportedDeclSyntax(declaration) else {
+      context.diagnose(Diagnostic(node: Syntax(node), message: SensitiveActionDiagnostic.unsupportedType))
       return []
     }
     
-    let conformsToAction = structDecl.inheritanceClause?.inheritedTypes.contains { inheritedType in
-      let name = inheritedType.type.as(IdentifierTypeSyntax.self)?.name.text
-      return name == "Action"
-    } ?? false
+    let structName = getDeclarationName(declaration)
     
-    guard conformsToAction else {
-      context.diagnose(Diagnostic(node: Syntax(node), message: SensitiveActionDiagnostic.mustConformToAction))
-      return []
-    }
-    
-    let structName = structDecl.name.text
-    
-    let fields = structDecl.memberBlock.members.compactMap {
+    let fields = declaration.memberBlock.members.compactMap {
       $0.decl.as(VariableDeclSyntax.self)
     }
     
@@ -80,7 +70,7 @@ public struct SensitiveActionMacro: ExtensionMacro {
       return true
     }
       
-    let shouldDisbaleMaskingFields = SensitiveActionOption(rawValue: option) == .disabledInDebug
+    let shouldDisbaleMaskingFields = SensitiveDataOption(rawValue: option) == .disabledInDebug
     
 #if DEBUG
     return !shouldDisbaleMaskingFields
@@ -138,6 +128,28 @@ public struct SensitiveActionMacro: ExtensionMacro {
           })),
         )
       )
+    }
+  }
+  
+  private static func isSupportedDeclSyntax(_ decl: DeclGroupSyntax) -> Bool {
+    let supportedDeclarationKinds: [any DeclSyntaxProtocol.Type] = [
+      ClassDeclSyntax.self,
+      StructDeclSyntax.self,
+      ActorDeclSyntax.self,
+    ]
+    return supportedDeclarationKinds.contains { decl.is($0) }
+  }
+  
+  private static func getDeclarationName(_ decl: DeclGroupSyntax) -> String {
+    switch decl.kind {
+    case .classDecl:
+      return decl.as(ClassDeclSyntax.self)?.name.text ?? ""
+    case .structDecl:
+      return decl.as(StructDeclSyntax.self)?.name.text ?? ""
+    case .actorDecl:
+      return decl.as(ActorDeclSyntax.self)?.name.text ?? ""
+    default:
+      return ""
     }
   }
 }

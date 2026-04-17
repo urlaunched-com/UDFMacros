@@ -11,4 +11,4 @@ public macro AutoHashable() = #externalMacro(module: "UDFMacrosMacros", type: "A
 public macro SensitiveField() = #externalMacro(module: "UDFMacrosMacros", type: "SensitiveFieldMacro")
 
 @attached(extension, conformances: CustomStringConvertible, SensitiveDataRepresentable,  names: named(description), named(maskedDescription), named(plainDescription))
-public macro SensitiveAction(option: SensitiveActionOption? = nil) = #externalMacro(module: "UDFMacrosMacros", type: "SensitiveActionMacro")
+public macro SensitiveData(option: SensitiveDataOption? = nil) = #externalMacro(module: "UDFMacrosMacros", type: "SensitiveDataMacro")
