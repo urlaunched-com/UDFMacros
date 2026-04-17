@@ -1,0 +1,28 @@
+#!/bin/bash
+
+echo "Pre-commit hook is triggered" >&2
+
+# Navigate to the root of the repository
+cd "$(git rev-parse --show-toplevel)" || exit
+
+# Ensure swiftformat is available
+SWIFTFORMAT_PATH=$(which swiftformat)
+if [ -z "$SWIFTFORMAT_PATH" ]; then
+  echo "swiftformat not found. Trying to install via Homebrew..." >&2
+  export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+  brew install swiftformat || { echo "Homebrew installation failed. Exiting."; exit 1; }
+  SWIFTFORMAT_PATH=$(which swiftformat)
+fi
+
+# Format all staged Swift files
+git diff --cached --name-only --diff-filter=d | grep "\.swift$" | while read -r filename; do
+  if [ -f "$filename" ]; then
+    echo "Formatting $filename..." >&2
+    $SWIFTFORMAT_PATH "$filename"
+    
+    # Re-stage the file after formatting
+    git add "$filename"
+  fi
+done
+
+echo "Swiftformat completed for staged files." >&2
