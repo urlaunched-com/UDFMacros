@@ -42,7 +42,6 @@ struct ContactCard {
 class HealthInsurance {
     @SensitiveField
     let identifier: String
-
     @SensitiveField
     let expiredAt: Date
 

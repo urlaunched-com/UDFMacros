@@ -6,5 +6,5 @@
 //
 
 public enum SensitiveDataOption: String {
-  case disabledInDebug
+    case disabledInDebug
 }

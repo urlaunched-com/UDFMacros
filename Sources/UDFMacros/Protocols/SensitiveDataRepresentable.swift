@@ -6,6 +6,6 @@
 //
 
 public protocol SensitiveDataRepresentable {
-  var maskedDescription: String { get }
-  var plainDescription: String { get }
+    var maskedDescription: String { get }
+    var plainDescription: String { get }
 }
