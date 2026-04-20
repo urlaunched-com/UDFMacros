@@ -404,12 +404,3 @@ private extension ExtensionMacro {
         }
     }
 }
-
-
-@main
-struct UDFMacrosPlugin: CompilerPlugin {
-    let providingMacros: [Macro.Type] = [
-        AutoEquatableMacro.self,
-        AutoHashableMacro.self,
-    ]
-}
