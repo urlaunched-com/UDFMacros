@@ -9,6 +9,7 @@ struct UDFMacrosPlugin: CompilerPlugin {
         AutoEquatableMacro.self,
         AutoHashableMacro.self,
         SensitiveFieldMacro.self,
-        SensitiveDataMacro.self
+        SensitiveDataMacro.self,
+        StorageMacro.self,
     ]
 }
