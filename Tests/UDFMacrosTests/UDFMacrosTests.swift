@@ -48,12 +48,12 @@ final class UDFMacrosTests: XCTestCase {
                 extension TestEnum: Equatable {
                     static func ==(lhs: TestEnum, rhs: TestEnum) -> Bool {
                         switch (lhs, rhs) {
-                        case let (.congratulations(lhs0), .congratulations(rhs0)):
-                            lhs0 == rhs0
+                        case let (.congratulations(_), .congratulations(_)):
+                            true
                         case let (.analytics(lhs0), .analytics(rhs0)):
                             lhs0 == rhs0
-                        case let (.addVideoFeedback(lhs0), .addVideoFeedback(rhs0)):
-                            lhs0 == rhs0
+                        case let (.addVideoFeedback(_), .addVideoFeedback(_)):
+                            true
                         case let (.addPhotoFeedback(lhs0), .addPhotoFeedback(rhs0)):
                             lhs0 == rhs0
                         case let (.additionalPhotosZoomed(lhs0, lhs1), .additionalPhotosZoomed(rhs0, rhs1)):
@@ -253,8 +253,8 @@ final class UDFMacrosTests: XCTestCase {
                             lhs0 == rhs0
                         case let (.withTuple(lhs0), .withTuple(rhs0)):
                             lhs0 == rhs0
-                        case let (.withMixed(lhs0, lhs1, lhs2), .withMixed(rhs0, rhs1, rhs2)):
-                            lhs0 == rhs0 && lhs1 == rhs1 && lhs2 == rhs2
+                        case let (.withMixed(lhs0, _, lhs2), .withMixed(rhs0, _, rhs2)):
+                            lhs0 == rhs0 && lhs2 == rhs2
                         case let (.withUUID(lhs0, lhs1), .withUUID(rhs0, rhs1)):
                             lhs0 == rhs0 && lhs1 == rhs1
                         default:
@@ -1513,6 +1513,8 @@ final class UDFMacrosTests: XCTestCase {
         #endif
     }
 
+    // MARK: - Storage Tests
+
     func testStorageBasicExpansion() throws {
         #if canImport(UDFMacrosMacros)
             assertMacroExpansion(
@@ -1684,6 +1686,61 @@ final class UDFMacrosTests: XCTestCase {
                         default:
                             break
                         }
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// Regression test: an existing overload with a DIFFERENT label
+    /// (`restaurantBy(review:)`) must not be mistaken for the macro's own
+    /// `restaurantBy(id:)` — matching on bare function name previously
+    /// caused the macro to silently skip generating `restaurantBy(id:)`
+    /// whenever any other `restaurantBy(...)` overload already existed.
+    func testStorageGeneratesAccessorDespiteDifferentlyLabeledOverload() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Restaurant.self)
+                struct AllRestaurants: Reducible {
+                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                        byReviewId[id]
+                    }
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                        byReviewId[id]
+                    }
+
+                    var byId: [Restaurant.ID: Restaurant] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Restaurant>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Restaurant>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Restaurant>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Restaurant>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func restaurantBy(id: Restaurant.ID) -> Restaurant {
+                        byId[id] ?? .empty
                     }
                 }
                 """,
