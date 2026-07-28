@@ -1694,6 +1694,114 @@ final class UDFMacrosTests: XCTestCase {
         #endif
     }
 
+    /// If the struct declares `reduceCustom`, the generated `reduce`'s
+    /// `default:` delegates to it instead of `break`.
+    func testStorageWiresReduceCustomWhenDeclared() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Dish.self)
+                struct AllDishes: Reducible {
+                    mutating func reduceCustom(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidDislikeDish:
+                            byId[action.dishID]?.isLiked = false
+                        default:
+                            break
+                        }
+                    }
+                }
+                """,
+                expandedSource: """
+                struct AllDishes: Reducible {
+                    mutating func reduceCustom(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidDislikeDish:
+                            byId[action.dishID]?.isLiked = false
+                        default:
+                            break
+                        }
+                    }
+
+                    var byId: [Dish.ID: Dish] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Dish>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Dish>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Dish>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Dish>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            reduceCustom(action)
+                        }
+                    }
+
+                    func dishBy(id: Dish.ID) -> Dish {
+                        byId[id] ?? .empty
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// Without a declared `reduceCustom`, `default:` stays `break` exactly
+    /// as before — no behavior change for storages that don't need a hook.
+    func testStorageDefaultCaseStaysBreakWithoutReduceCustom() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Dish.self)
+                struct AllDishes: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllDishes: Reducible {
+
+                    var byId: [Dish.ID: Dish] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Dish>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Dish>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Dish>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Dish>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func dishBy(id: Dish.ID) -> Dish {
+                        byId[id] ?? .empty
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
     func testStorageRequiresStruct() throws {
         #if canImport(UDFMacrosMacros)
             assertMacroExpansion(

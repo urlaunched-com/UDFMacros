@@ -35,7 +35,11 @@ public struct StorageMacro: MemberMacro {
             )
         }
 
-        if !existingNames.contains("reduce") {
+        if !existingNames.contains("reduce(_:)") {
+            let defaultCase = existingNames.contains("reduceCustom(_:)")
+                ? "reduceCustom(action)"
+                : "break"
+
             members.append(
                 """
                 mutating func reduce(_ action: some Action) {
@@ -53,7 +57,7 @@ public struct StorageMacro: MemberMacro {
                         byId.removeValue(forKey: action.item.id)
 
                     default:
-                        break
+                        \(raw: defaultCase)
                     }
                 }
                 """
@@ -62,7 +66,7 @@ public struct StorageMacro: MemberMacro {
 
         let accessorName = "\(lowerCamelCase(itemTypeName))By"
 
-        if !existingNames.contains(accessorName) {
+        if !existingNames.contains("\(accessorName)(id:)") {
             members.append(
                 """
                 func \(raw: accessorName)(id: \(raw: itemTypeName).ID) -> \(raw: itemTypeName) {
@@ -127,11 +131,24 @@ public struct StorageMacro: MemberMacro {
                     }
                 }
             } else if let funcDecl = member.decl.as(FunctionDeclSyntax.self) {
-                names.insert(funcDecl.name.text)
+                names.insert(functionSignature(funcDecl))
             }
         }
 
         return names
+    }
+
+    /// Builds a name+labels key (e.g. "restaurantBy(id:)", "reduce(_:)") so
+    /// overloads sharing a base name — `restaurantBy(review:)` vs the
+    /// macro's own `restaurantBy(id:)` — aren't mistaken for the same
+    /// member. Matching on bare name here previously caused the macro to
+    /// silently skip generating `restaurantBy(id:)` whenever any other
+    /// `restaurantBy(...)` overload already existed.
+    private static func functionSignature(_ funcDecl: FunctionDeclSyntax) -> String {
+        let labels = funcDecl.signature.parameterClause.parameters.map { param in
+            param.firstName.text == "_" ? "_" : param.firstName.text
+        }
+        return "\(funcDecl.name.text)(\(labels.map { "\($0):" }.joined()))"
     }
 
     private static func isSupportedDeclSyntax(_ decl: DeclGroupSyntax) -> Bool {

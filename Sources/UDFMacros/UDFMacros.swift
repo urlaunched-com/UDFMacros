@@ -26,9 +26,15 @@ public macro SensitiveData(option: SensitiveDataOption? = nil) = #externalMacro(
 ///
 /// If `byId`, `reduce`, and/or the accessor are already declared in the
 /// attached struct, the macro leaves that member alone and only fills in
-/// what's missing — this is the escape hatch for a storage that needs an
-/// extra action case (e.g. `DidToggleFavorite<Movie>`) alongside the
-/// standard four: write your own `reduce` with the extra case, and the
-/// macro won't try to generate a conflicting one.
+/// what's missing.
+///
+/// **Custom actions:** if you declare a `mutating func reduceCustom(_ action:
+/// some Action)`, the generated `reduce`'s `default:` case calls it instead
+/// of `break` — write your bespoke cases there (e.g. `DidLoadPopularDishes`,
+/// `DidDislikeDish`) without needing to hand-write the whole `reduce`.
+/// If you don't declare `reduceCustom`, `default:` stays `break` exactly as
+/// before. For the rarer case where you need to override one of the
+/// standard four cases itself, write the full `reduce` by hand — the macro
+/// detects that and won't generate a conflicting one.
 @attached(member, names: named(byId), named(reduce), arbitrary)
 public macro Storage<Item: Identifiable>(_ type: Item.Type) = #externalMacro(module: "UDFMacrosMacros", type: "StorageMacro")
