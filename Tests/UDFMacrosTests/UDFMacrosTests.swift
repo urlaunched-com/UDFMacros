@@ -2458,4 +2458,157 @@ final class UDFMacrosTests: XCTestCase {
             throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
+
+    /// Hand-written storage property is left untouched — macro doesn't
+    /// regenerate it even though it comes from a .hasMany relationship.
+    func testStorageRelationshipsHasManySkipsExistingProperty() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Dish.self)
+                @StorageRelationships(
+                    .hasMany(Restaurant.self)
+                )
+                struct AllDishes: Reducible {
+                    var byRestaurantId: [Restaurant.ID: OrderedSet<Dish.ID>] = [:]
+                }
+                """,
+                expandedSource: """
+                struct AllDishes: Reducible {
+                    var byRestaurantId: [Restaurant.ID: OrderedSet<Dish.ID>] = [:]
+
+                    var byId: [Dish.ID: Dish] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Dish>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Dish>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Dish>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Dish>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            reduceRelationships(action)
+                        }
+                    }
+
+                    func dishBy(id: Dish.ID) -> Dish {
+                        byId[id] ?? .empty
+                    }
+
+                    mutating func reduceRelationships(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadNestedItem<Restaurant.ID, Dish>:
+                            byId.insert(item: action.item)
+                            byRestaurantId.append(action.item.id, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedItems<Restaurant.ID, Dish>:
+                            byId.insert(items: action.items)
+                            byRestaurantId.append(action.items.ids, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedByParents<Restaurant.ID, Dish>:
+                            for (parentId, children) in action.dictionary {
+                                byId.insert(items: children)
+                                byRestaurantId.append(children.ids, by: parentId)
+                            }
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                        Array(byRestaurantId[id] ?? [])
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// Hand-written accessor is left untouched — macro doesn't regenerate it.
+    func testStorageRelationshipsHasManySkipsExistingAccessor() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Dish.self)
+                @StorageRelationships(
+                    .hasMany(Restaurant.self)
+                )
+                struct AllDishes: Reducible {
+                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                        Array(byRestaurantId[id] ?? [])
+                    }
+                }
+                """,
+                expandedSource: """
+                struct AllDishes: Reducible {
+                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                        Array(byRestaurantId[id] ?? [])
+                    }
+
+                    var byId: [Dish.ID: Dish] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Dish>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Dish>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Dish>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Dish>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            reduceRelationships(action)
+                        }
+                    }
+
+                    func dishBy(id: Dish.ID) -> Dish {
+                        byId[id] ?? .empty
+                    }
+
+                    var byRestaurantId: [Restaurant.ID: OrderedSet<Dish.ID>] = [:]
+
+                    mutating func reduceRelationships(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadNestedItem<Restaurant.ID, Dish>:
+                            byId.insert(item: action.item)
+                            byRestaurantId.append(action.item.id, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedItems<Restaurant.ID, Dish>:
+                            byId.insert(items: action.items)
+                            byRestaurantId.append(action.items.ids, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedByParents<Restaurant.ID, Dish>:
+                            for (parentId, children) in action.dictionary {
+                                byId.insert(items: children)
+                                byRestaurantId.append(children.ids, by: parentId)
+                            }
+
+                        default:
+                            break
+                        }
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
 }
