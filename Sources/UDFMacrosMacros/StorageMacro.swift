@@ -17,6 +17,7 @@ public struct StorageMacro: MemberMacro {
         }
 
         guard let itemTypeName = itemTypeName(from: node, context: context) else {
+            context.diagnose(Diagnostic(node: Syntax(node), message: StorageDiagnostic.invalidArgument))
             return []
         }
 
