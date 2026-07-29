@@ -65,12 +65,9 @@ public struct StorageMacro: MemberMacro {
             }
 
             // Built as a flat line array + single DeclSyntax(stringLiteral:)
-            // rather than a multi-line \(raw:) interpolation embedded inside
-            // more literal template text — the latter caused a real
-            // indentation bug (reduceCustom(action) picked up extra leading
-            // spaces) whenever defaultCaseLines had more than one line, since
-            // a multi-line raw interpolation followed by more outer-literal
-            // lines in the same triple-quote doesn't compose predictably.
+            // rather than a multi-line \(raw:) interpolation followed by more
+            // literal text in the same triple-quote — the latter doesn't
+            // reindent predictably once defaultCaseLines has more than one line.
             var reduceLines: [String] = [
                 "mutating func reduce(_ action: some Action) {",
                 "    switch action {",
