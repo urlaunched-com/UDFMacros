@@ -104,7 +104,7 @@ public struct StorageMacro: MemberMacro {
     /// Expects exactly one argument shaped like `Movie.self`.
     private static func itemTypeName(
         from node: AttributeSyntax,
-        context: some MacroExpansionContext
+        context _: some MacroExpansionContext
     ) -> String? {
         guard
             let arguments = node.arguments?.as(LabeledExprListSyntax.self),
@@ -114,7 +114,6 @@ public struct StorageMacro: MemberMacro {
             memberAccess.declName.baseName.text == "self",
             let base = memberAccess.base?.as(DeclReferenceExprSyntax.self)
         else {
-            context.diagnose(Diagnostic(node: Syntax(node), message: StorageDiagnostic.invalidArgument))
             return nil
         }
 
