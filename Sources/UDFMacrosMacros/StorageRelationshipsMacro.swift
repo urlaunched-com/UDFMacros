@@ -9,18 +9,22 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-// MARK: - Parsed relationship model
+// MARK: - Parsed relationship models
 
 private struct ParsedHasOne {
     let parentTypeName: String
-    /// Storage dictionary name, e.g. "byReviewId". Matches the established
-    /// `by<ParentType>Id` convention seen in hand-written relationships
-    /// (byReviewId, byFortuneResultId, byDishId).
     let propertyName: String
-    /// Accessor argument label, e.g. "review". NOT mechanically derived from
-    /// parentTypeName by default in every case in the existing codebase
-    /// (`fortuneResult` for FortuneWheelResult, `dishID` for Dish) — so this
-    /// is independently overridable via `label:`, not tied to `propertyName`.
+    let argumentLabel: String
+}
+
+// mirrors ParsedHasOne. Kept as a separate type (not a shared enum) because
+// hasOne/hasMany genuinely generate different code shapes downstream (storage
+// value type, reduce-case bodies, accessor return type) — collapsing them into
+// one type with a `kind` flag would just push an `if kind == .hasMany` into
+// every codegen site instead of keeping each shape in its own place.
+private struct ParsedHasMany {
+    let parentTypeName: String
+    let propertyName: String
     let argumentLabel: String
 }
 
@@ -32,7 +36,6 @@ public struct StorageRelationshipsMacro: MemberMacro {
         providingMembersOf declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // 1. Symmetric check: @Storage must be present on the same declaration.
         let hasStorageAttribute = declaration.attributes.contains { attribute in
             guard case let .attribute(attr) = attribute,
                   let identifier = attr.attributeName.as(IdentifierTypeSyntax.self)
@@ -44,9 +47,7 @@ public struct StorageRelationshipsMacro: MemberMacro {
             return []
         }
 
-        // 2. Pull the item type out of the sibling @Storage(Item.self) attribute.
         guard let itemTypeName = storageItemTypeName(from: declaration) else {
-            // @Storage's own macro already diagnoses a malformed argument.
             return []
         }
 
@@ -54,8 +55,14 @@ public struct StorageRelationshipsMacro: MemberMacro {
             return []
         }
 
-        var relationships: [ParsedHasOne] = []
+        var hasOneRelationships: [ParsedHasOne] = []
+        var hasManyRelationships: [ParsedHasMany] = []
         var usedPropertyNames: Set<String> = []
+        // tracks parentTypeName across BOTH hasOne and hasMany. This is the
+        // real collision surface — two relationships to the same parent type
+        // generate the same `Actions.DidLoadNestedItem<Parent.ID, Item>` case
+        // regardless of what the storage property is named.
+        var usedParentTypeNames: Set<String> = []
         var sawError = false
 
         for argument in arguments {
@@ -67,14 +74,8 @@ public struct StorageRelationshipsMacro: MemberMacro {
                 continue
             }
 
-            switch member.declName.baseName.text {
-            case "hasMany":
-                context.diagnose(Diagnostic(node: argument, message: StorageRelationshipsDiagnostic.hasManyNotYetSupported))
-                sawError = true
-                continue
-            case "hasOne":
-                break
-            default:
+            let kind = member.declName.baseName.text
+            guard kind == "hasOne" || kind == "hasMany" else {
                 context.diagnose(Diagnostic(node: argument, message: StorageRelationshipsDiagnostic.malformedArgument))
                 sawError = true
                 continue
@@ -91,9 +92,21 @@ public struct StorageRelationshipsMacro: MemberMacro {
             }
             let parentTypeName = typeBase.baseName.text
 
+            guard usedParentTypeNames.insert(parentTypeName).inserted else {
+                context.diagnose(Diagnostic(
+                    node: argument,
+                    message: StorageRelationshipsDiagnostic.duplicateParentType(parentTypeName)
+                ))
+                sawError = true
+                continue
+            }
+
             let explicitName = stringArgument(call, label: "name")
             let explicitLabel = stringArgument(call, label: "label")
 
+            // Same default-naming scheme for both kinds: "by<Parent>Id".
+            // No pluralization here — the key is always a single Parent.ID,
+            // even for hasMany (the "many" lives in the value's OrderedSet).
             let propertyName = explicitName ?? "by\(parentTypeName)Id"
             let argumentLabel = explicitLabel ?? lowerCamelCase(parentTypeName)
 
@@ -103,17 +116,23 @@ public struct StorageRelationshipsMacro: MemberMacro {
                 continue
             }
 
-            relationships.append(ParsedHasOne(
-                parentTypeName: parentTypeName,
-                propertyName: propertyName,
-                argumentLabel: argumentLabel
-            ))
+            if kind == "hasOne" {
+                hasOneRelationships.append(ParsedHasOne(
+                    parentTypeName: parentTypeName,
+                    propertyName: propertyName,
+                    argumentLabel: argumentLabel
+                ))
+            } else {
+                hasManyRelationships.append(ParsedHasMany(
+                    parentTypeName: parentTypeName,
+                    propertyName: propertyName,
+                    argumentLabel: argumentLabel
+                ))
+            }
         }
 
         guard !sawError else { return [] }
 
-        // 3. Escape hatch, symmetric with @Storage's own: don't regenerate
-        //    members already written by hand. Matched by full signature.
         let existingPropertyNames = existingStoredPropertyNames(in: declaration)
         let existingFunctionSignatures = existingFunctionSignatures(in: declaration)
 
@@ -127,40 +146,49 @@ public struct StorageRelationshipsMacro: MemberMacro {
 
         var members: [DeclSyntax] = []
 
-        // 4. Storage property per relationship — `var by<Parent>Id: [Parent.ID: Item.ID]`.
-        for relationship in relationships where !existingPropertyNames.contains(relationship.propertyName) {
+        // Storage properties — hasOne
+        for relationship in hasOneRelationships where !existingPropertyNames.contains(relationship.propertyName) {
             members.append(DeclSyntax(stringLiteral:
                 "var \(relationship.propertyName): [\(relationship.parentTypeName).ID: \(itemTypeName).ID] = [:]"
             ))
         }
 
-        // 5. Combined reduceRelationships(_:) — composes with @Storage's
-        //    default: branch without colliding with a user-written reduceCustom(_:).
-        //
-        //    Only Actions.DidLoadNestedItem<ParentId, Nested> is generated here —
-        //    it's the one confirmed to exist in UDFMacros/UDF's own Actions.swift.
-        //    A bulk "by parents" load is deliberately NOT generated: that action
-        //    (however it's named/shaped) lives at the app level, not the framework
-        //    level, and its shape isn't standardized across apps — generating a
-        //    reference to it would break compilation wherever it doesn't exist or
-        //    doesn't match. If a relationship needs bulk-load handling, add that
-        //    case by hand in reduceCustom(_:), which still sees byId/by<Parent>Id.
-        //
-        //    Built as a flat line array + single DeclSyntax(stringLiteral:) rather
-        //    than a multi-line \(raw:) interpolation embedded inside more literal
-        //    template text — the latter caused a real indentation bug (default:/
-        //    break picked up extra leading spaces) since a multi-line raw
-        //    interpolation followed by more outer-literal lines in the same
-        //    triple-quote doesn't compose the way a single self-contained literal
-        //    does (which is how @Storage's own reduce() cases are written).
+        // Storage properties — hasMany
+        for relationship in hasManyRelationships where !existingPropertyNames.contains(relationship.propertyName) {
+            members.append(DeclSyntax(stringLiteral:
+                "var \(relationship.propertyName): [\(relationship.parentTypeName).ID: OrderedSet<\(itemTypeName).ID>] = [:]"
+            ))
+        }
+
+        // reduceRelationships(_:) — both kinds combined into one switch.
         var reduceRelationshipsLines: [String] = [
             "mutating func reduceRelationships(_ action: some Action) {",
             "    switch action {",
         ]
-        for relationship in relationships {
+        for relationship in hasOneRelationships {
             reduceRelationshipsLines.append("    case let action as Actions.DidLoadNestedItem<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
             reduceRelationshipsLines.append("        byId.insert(item: action.item)")
             reduceRelationshipsLines.append("        \(relationship.propertyName)[action.parentId] = action.item.id")
+            reduceRelationshipsLines.append("")
+        }
+        // hasMany's three cases — additive (.append), matching the
+        // union convention confirmed in AllDishes/AllReviews.
+        for relationship in hasManyRelationships {
+            reduceRelationshipsLines.append("    case let action as Actions.DidLoadNestedItem<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
+            reduceRelationshipsLines.append("        byId.insert(item: action.item)")
+            reduceRelationshipsLines.append("        \(relationship.propertyName).append(action.item.id, by: action.parentId)")
+            reduceRelationshipsLines.append("")
+
+            reduceRelationshipsLines.append("    case let action as Actions.DidLoadNestedItems<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
+            reduceRelationshipsLines.append("        byId.insert(items: action.items)")
+            reduceRelationshipsLines.append("        \(relationship.propertyName).append(action.items.ids, by: action.parentId)")
+            reduceRelationshipsLines.append("")
+
+            reduceRelationshipsLines.append("    case let action as Actions.DidLoadNestedByParents<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
+            reduceRelationshipsLines.append("        for (parentId, children) in action.dictionary {")
+            reduceRelationshipsLines.append("            byId.insert(items: children)")
+            reduceRelationshipsLines.append("            \(relationship.propertyName).append(children.ids, by: parentId)")
+            reduceRelationshipsLines.append("        }")
             reduceRelationshipsLines.append("")
         }
         reduceRelationshipsLines.append("    default:")
@@ -169,11 +197,9 @@ public struct StorageRelationshipsMacro: MemberMacro {
         reduceRelationshipsLines.append("}")
         members.append(DeclSyntax(stringLiteral: reduceRelationshipsLines.joined(separator: "\n")))
 
-        // 6. Accessor per relationship — overload of `<item>By(...)`, matching
-        //    @Storage's own accessor base name (e.g. `restaurantBy(id:)`).
-        //    Returns Item.ID?, matching the hand-written accessors.
+        // Accessors — hasOne: singular, optional Item.ID?
         let accessorBaseName = "\(lowerCamelCase(itemTypeName))By"
-        for relationship in relationships {
+        for relationship in hasOneRelationships {
             let signatureKey = "\(accessorBaseName)(\(relationship.argumentLabel))"
             guard !existingFunctionSignatures.contains(signatureKey) else { continue }
             let accessorLines = [
@@ -184,10 +210,27 @@ public struct StorageRelationshipsMacro: MemberMacro {
             members.append(DeclSyntax(stringLiteral: accessorLines.joined(separator: "\n")))
         }
 
+        // Accessors — hasMany: pluralized name, [Item.ID] return.
+        // Naive "+s" pluralization — cosmetic only (doesn't affect the storage
+        // property name, which stays singular). Irregular plurals won't be
+        // exact; the existing-signature escape hatch lets a hand-written
+        // correctly-pluralized accessor override this one.
+        let accessorManyBaseName = "\(pluralize(lowerCamelCase(itemTypeName)))By"
+        for relationship in hasManyRelationships {
+            let signatureKey = "\(accessorManyBaseName)(\(relationship.argumentLabel))"
+            guard !existingFunctionSignatures.contains(signatureKey) else { continue }
+            let accessorLines = [
+                "func \(accessorManyBaseName)(\(relationship.argumentLabel) id: \(relationship.parentTypeName).ID) -> [\(itemTypeName).ID] {",
+                "    Array(\(relationship.propertyName)[id] ?? [])",
+                "}",
+            ]
+            members.append(DeclSyntax(stringLiteral: accessorLines.joined(separator: "\n")))
+        }
+
         return members
     }
 
-    // MARK: - Helpers
+    // MARK: - Helpers (unchanged from the hasOne-only version)
 
     private static func stringArgument(_ call: FunctionCallExprSyntax, label: String) -> String? {
         call.arguments.first(where: { $0.label?.text == label })?
@@ -244,5 +287,20 @@ public struct StorageRelationshipsMacro: MemberMacro {
     private static func lowerCamelCase(_ name: String) -> String {
         guard let first = name.first else { return name }
         return first.lowercased() + name.dropFirst()
+    }
+
+    private static func pluralize(_ word: String) -> String {
+        let lower = word.lowercased()
+        if lower.hasSuffix("s") || lower.hasSuffix("x") || lower.hasSuffix("z")
+            || lower.hasSuffix("ch") || lower.hasSuffix("sh")
+        {
+            return word + "es"
+        }
+        if lower.hasSuffix("y"), let beforeY = word.dropLast().last,
+           !"aeiou".contains(beforeY.lowercased())
+        {
+            return String(word.dropLast()) + "ies"
+        }
+        return word + "s"
     }
 }

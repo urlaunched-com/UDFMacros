@@ -1904,7 +1904,7 @@ final class UDFMacrosTests: XCTestCase {
         #endif
     }
 
-    // MARK: - StorageRelationships Tests
+    // MARK: - StorageRelationships .hasOne Tests
 
     /// Single hasOne relationship, default name/label. Only DidLoadNestedItem is
     /// generated — bulk "by parents" loading is app-level and out of scope.
@@ -2101,7 +2101,7 @@ final class UDFMacrosTests: XCTestCase {
                 @Storage(Movie.self)
                 @StorageRelationships(
                     .hasOne(Person.self),
-                    .hasOne(Person.self)
+                    .hasMany(Personnel.self, name: "byPersonId")
                 )
                 struct AllMovies: Reducible {
                 }
@@ -2228,14 +2228,16 @@ final class UDFMacrosTests: XCTestCase {
         #endif
     }
 
-    /// .hasMany is deliberately unimplemented — a clear diagnostic, not guessed code.
-    /// Note: @Storage still generates its own members (byId/reduce/accessor)
-    /// regardless — its hasRelationships check is name-only (it can't see whether
-    /// the sibling macro actually succeeded), so `reduceRelationships(action)` is
-    /// still called in `default:` even though @StorageRelationships produced
-    /// nothing here. That's fine: the diagnostic below already fails the build,
-    /// this just documents that @Storage's own output is unaffected.
-    func testStorageRelationshipsHasManyNotYetSupported() throws {
+    // MARK: - StorageRelationships .hasMany Tests
+
+    /// Single hasMany relationship, default naming. Uses the same Dish/Restaurant
+    /// pair as the real hand-written AllDishes, so the generated output can be
+    /// diffed directly against it: default name is `byRestaurantId` (not `byMovie`
+    /// / not pluralized) — the key is still a single Restaurant.ID, only the
+    /// *value* is a collection. Three reduce cases are generated (DidLoadNestedItem,
+    /// DidLoadNestedItems, DidLoadNestedByParents), all additive via `.append`,
+    /// matching the union convention confirmed in the real AllDishes/AllReviews.
+    func testStorageRelationshipsSingleHasManyDefaultNaming() throws {
         #if canImport(UDFMacrosMacros)
             assertMacroExpansion(
                 """
@@ -2273,12 +2275,180 @@ final class UDFMacrosTests: XCTestCase {
                     func dishBy(id: Dish.ID) -> Dish {
                         byId[id] ?? .empty
                     }
+
+                    var byRestaurantId: [Restaurant.ID: OrderedSet<Dish.ID>] = [:]
+
+                    mutating func reduceRelationships(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadNestedItem<Restaurant.ID, Dish>:
+                            byId.insert(item: action.item)
+                            byRestaurantId.append(action.item.id, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedItems<Restaurant.ID, Dish>:
+                            byId.insert(items: action.items)
+                            byRestaurantId.append(action.items.ids, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedByParents<Restaurant.ID, Dish>:
+                            for (parentId, children) in action.dictionary {
+                                byId.insert(items: children)
+                                byRestaurantId.append(children.ids, by: parentId)
+                            }
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                        Array(byRestaurantId[id] ?? [])
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// hasOne and hasMany in the same @StorageRelationships call, to different
+    /// parent types — no collision, both generate correctly, ordered hasOne-first
+    /// throughout (properties, reduce cases, accessors).
+    func testStorageRelationshipsMixedHasOneAndHasMany() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Restaurant.self)
+                @StorageRelationships(
+                    .hasOne(Review.self),
+                    .hasMany(Category.self)
+                )
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+
+                    var byId: [Restaurant.ID: Restaurant] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Restaurant>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Restaurant>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Restaurant>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Restaurant>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            reduceRelationships(action)
+                        }
+                    }
+
+                    func restaurantBy(id: Restaurant.ID) -> Restaurant {
+                        byId[id] ?? .empty
+                    }
+
+                    var byReviewId: [Review.ID: Restaurant.ID] = [:]
+
+                    var byCategoryId: [Category.ID: OrderedSet<Restaurant.ID>] = [:]
+
+                    mutating func reduceRelationships(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
+                            byId.insert(item: action.item)
+                            byReviewId[action.parentId] = action.item.id
+
+                        case let action as Actions.DidLoadNestedItem<Category.ID, Restaurant>:
+                            byId.insert(item: action.item)
+                            byCategoryId.append(action.item.id, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedItems<Category.ID, Restaurant>:
+                            byId.insert(items: action.items)
+                            byCategoryId.append(action.items.ids, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedByParents<Category.ID, Restaurant>:
+                            for (parentId, children) in action.dictionary {
+                                byId.insert(items: children)
+                                byCategoryId.append(children.ids, by: parentId)
+                            }
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                        byReviewId[id]
+                    }
+
+                    func restaurantsBy(category id: Category.ID) -> [Restaurant.ID] {
+                        Array(byCategoryId[id] ?? [])
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// Two relationships to the same parent type — one hasOne, one hasMany with
+    /// an explicit `name:` override — must still be flagged. Storage property
+    /// names differ (`byProducerId` vs `coProducers`), so the existing
+    /// `duplicateName` check wouldn't catch this; both would otherwise generate
+    /// `Actions.DidLoadNestedItem<Producer.ID, Movie>` as a duplicate case.
+    func testStorageRelationshipsDuplicateParentTypeDiagnostic() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Movie.self)
+                @StorageRelationships(
+                    .hasOne(Producer.self),
+                    .hasMany(Producer.self, name: "coProducers")
+                )
+                struct AllMovies: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllMovies: Reducible {
+
+                    var byId: [Movie.ID: Movie] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Movie>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Movie>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Movie>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Movie>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            reduceRelationships(action)
+                        }
+                    }
+
+                    func movieBy(id: Movie.ID) -> Movie {
+                        byId[id] ?? .empty
+                    }
                 }
                 """,
                 diagnostics: [
                     DiagnosticSpec(
-                        message: "@StorageRelationships does not generate .hasMany relationships yet — write this one by hand for now (deliberately deferred, not guessed at).",
-                        line: 3,
+                        message: "'Producer' is already used as a relationship parent type on this declaration. Two relationships to the same parent type — regardless of whether they're `.hasOne` or `.hasMany` — would generate a duplicate `Actions.DidLoadNestedItem<Producer.ID, _>` case in reduceRelationships(_:), even if their storage property names differ via `name:`.",
+                        line: 4,
                         column: 5
                     ),
                 ],
