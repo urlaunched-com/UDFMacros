@@ -13,14 +13,10 @@ import SwiftSyntaxMacros
 
 private struct ParsedHasOne {
     let parentTypeName: String
-    /// Storage dictionary name, e.g. "byReviewId". Matches the established
-    /// `by<ParentType>Id` convention seen in hand-written relationships
-    /// (byReviewId, byFortuneResultId, byDishId).
+    /// Storage dictionary name, e.g. "byReviewId" (see `StorageRelationships` doc).
     let propertyName: String
-    /// Accessor argument label, e.g. "review". NOT mechanically derived from
-    /// parentTypeName by default in every case in the existing codebase
-    /// (`fortuneResult` for FortuneWheelResult, `dishID` for Dish) — so this
-    /// is independently overridable via `label:`, not tied to `propertyName`.
+    /// Accessor argument label, e.g. "review" — independently overridable via
+    /// `label:` (see `StorageRelationships` doc for why it's separate from `name:`).
     let argumentLabel: String
 }
 
@@ -32,7 +28,7 @@ public struct StorageRelationshipsMacro: MemberMacro {
         providingMembersOf declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // 1. Symmetric check: @Storage must be present on the same declaration.
+        // Symmetric check: @Storage must be present on the same declaration.
         let hasStorageAttribute = declaration.attributes.contains { attribute in
             guard case let .attribute(attr) = attribute,
                   let identifier = attr.attributeName.as(IdentifierTypeSyntax.self)
@@ -44,7 +40,7 @@ public struct StorageRelationshipsMacro: MemberMacro {
             return []
         }
 
-        // 2. Pull the item type out of the sibling @Storage(Item.self) attribute.
+        // Pull the item type out of the sibling @Storage(Item.self) attribute.
         guard let itemTypeName = storageItemTypeName(from: declaration) else {
             // @Storage's own macro already diagnoses a malformed argument.
             return []
@@ -112,8 +108,8 @@ public struct StorageRelationshipsMacro: MemberMacro {
 
         guard !sawError else { return [] }
 
-        // 3. Escape hatch, symmetric with @Storage's own: don't regenerate
-        //    members already written by hand. Matched by full signature.
+        // Escape hatch, symmetric with @Storage's own: don't regenerate
+        // members already written by hand. Matched by full signature.
         let existingPropertyNames = existingStoredPropertyNames(in: declaration)
         let existingFunctionSignatures = existingFunctionSignatures(in: declaration)
 
@@ -127,32 +123,22 @@ public struct StorageRelationshipsMacro: MemberMacro {
 
         var members: [DeclSyntax] = []
 
-        // 4. Storage property per relationship — `var by<Parent>Id: [Parent.ID: Item.ID]`.
+        // Storage property per relationship — `var by<Parent>Id: [Parent.ID: Item.ID]`.
         for relationship in relationships where !existingPropertyNames.contains(relationship.propertyName) {
             members.append(DeclSyntax(stringLiteral:
                 "var \(relationship.propertyName): [\(relationship.parentTypeName).ID: \(itemTypeName).ID] = [:]"
             ))
         }
 
-        // 5. Combined reduceRelationships(_:) — composes with @Storage's
-        //    default: branch without colliding with a user-written reduceCustom(_:).
+        // Combined reduceRelationships(_:) — composes with @Storage's
+        // default: branch without colliding with a user-written reduceCustom(_:).
+        // Only DidLoadNestedItem is generated; bulk ByParents load is out of
+        // scope — see the doc comment on `StorageRelationships` for why.
         //
-        //    Only Actions.DidLoadNestedItem<ParentId, Nested> is generated here —
-        //    it's the one confirmed to exist in UDFMacros/UDF's own Actions.swift.
-        //    A bulk "by parents" load is deliberately NOT generated: that action
-        //    (however it's named/shaped) lives at the app level, not the framework
-        //    level, and its shape isn't standardized across apps — generating a
-        //    reference to it would break compilation wherever it doesn't exist or
-        //    doesn't match. If a relationship needs bulk-load handling, add that
-        //    case by hand in reduceCustom(_:), which still sees byId/by<Parent>Id.
-        //
-        //    Built as a flat line array + single DeclSyntax(stringLiteral:) rather
-        //    than a multi-line \(raw:) interpolation embedded inside more literal
-        //    template text — the latter caused a real indentation bug (default:/
-        //    break picked up extra leading spaces) since a multi-line raw
-        //    interpolation followed by more outer-literal lines in the same
-        //    triple-quote doesn't compose the way a single self-contained literal
-        //    does (which is how @Storage's own reduce() cases are written).
+        // Built as a flat line array + single DeclSyntax(stringLiteral:)
+        // rather than a multi-line \(raw:) interpolation followed by more
+        // literal text in the same triple-quote — the latter doesn't
+        // reindent predictably (see StorageMacro's identical fix).
         var reduceRelationshipsLines: [String] = [
             "mutating func reduceRelationships(_ action: some Action) {",
             "    switch action {",
@@ -169,7 +155,7 @@ public struct StorageRelationshipsMacro: MemberMacro {
         reduceRelationshipsLines.append("}")
         members.append(DeclSyntax(stringLiteral: reduceRelationshipsLines.joined(separator: "\n")))
 
-        // 6. Accessor per relationship — overload of `<item>By(...)`, matching
+        // Accessor per relationship — overload of `<item>By(...)`, matching
         //    @Storage's own accessor base name (e.g. `restaurantBy(id:)`).
         //    Returns Item.ID?, matching the hand-written accessors.
         let accessorBaseName = "\(lowerCamelCase(itemTypeName))By"

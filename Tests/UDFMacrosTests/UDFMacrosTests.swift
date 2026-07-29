@@ -1906,8 +1906,8 @@ final class UDFMacrosTests: XCTestCase {
 
     // MARK: - StorageRelationships Tests
 
-    /// Single hasOne relationship, default name/label. Only DidLoadNestedItem is
-    /// generated — bulk "by parents" loading is app-level and out of scope.
+    /// Single hasOne relationship, default name/label (bulk-load rationale is
+    /// documented on the `StorageRelationships` macro itself).
     func testStorageRelationshipsSingleHasOneDefaultNaming() throws {
         #if canImport(UDFMacrosMacros)
             assertMacroExpansion(
@@ -2228,13 +2228,10 @@ final class UDFMacrosTests: XCTestCase {
         #endif
     }
 
-    /// .hasMany is deliberately unimplemented — a clear diagnostic, not guessed code.
-    /// Note: @Storage still generates its own members (byId/reduce/accessor)
-    /// regardless — its hasRelationships check is name-only (it can't see whether
-    /// the sibling macro actually succeeded), so `reduceRelationships(action)` is
-    /// still called in `default:` even though @StorageRelationships produced
-    /// nothing here. That's fine: the diagnostic below already fails the build,
-    /// this just documents that @Storage's own output is unaffected.
+    /// .hasMany is deliberately unimplemented — a clear diagnostic, not guessed
+    /// code. @Storage still generates its own members regardless (its
+    /// hasRelationships check is name-only) — harmless since the diagnostic
+    /// below already fails the build.
     func testStorageRelationshipsHasManyNotYetSupported() throws {
         #if canImport(UDFMacrosMacros)
             assertMacroExpansion(
