@@ -13,8 +13,8 @@ public enum RelationshipDescriptor {
 /// Attaches one or more storage relationships to an `@Storage`-annotated `Reducible`.
 ///
 /// Must be combined with `@Storage(_:)` on the same declaration — `@StorageRelationships`
-/// generates the relationship dictionaries and a `reduceRelationships(_:)` method, but
-/// it's `@Storage`'s generated `reduce(_:)` that actually calls `reduceRelationships`.
+/// generates the relationship dictionaries and a `_reduceRelationships(_:)` method, but
+/// it's `@Storage`'s generated `reduce(_:)` that actually calls `_reduceRelationships`.
 /// Using `@StorageRelationships` without `@Storage` is a compile-time error.
 ///
 ///     @Storage(Restaurant.self)
@@ -27,7 +27,7 @@ public enum RelationshipDescriptor {
 ///
 /// Generates, per relationship:
 /// - `var by<Parent>Id: [Parent.ID: Item.ID] = [:]`
-/// - a `reduceRelationships(_:)` case for `Actions.DidLoadNestedItem<Parent.ID, Item>`
+/// - a `_reduceRelationships(_:)` case for `Actions.DidLoadNestedItem<Parent.ID, Item>`
 /// - an accessor overload `<item>By(<label>: Parent.ID) -> Item.ID?`
 ///
 /// Bulk "load nested items grouped by parent" is deliberately **not** generated.

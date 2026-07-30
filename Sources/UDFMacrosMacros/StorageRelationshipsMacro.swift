@@ -113,10 +113,10 @@ public struct StorageRelationshipsMacro: MemberMacro {
         let existingPropertyNames = existingStoredPropertyNames(in: declaration)
         let existingFunctionSignatures = existingFunctionSignatures(in: declaration)
 
-        if existingFunctionSignatures.contains("reduceRelationships(_)") {
+        if existingFunctionSignatures.contains("_reduceRelationships(_)") {
             context.diagnose(Diagnostic(
                 node: node,
-                message: StorageRelationshipsDiagnostic.alreadyDeclared("reduceRelationships(_:)")
+                message: StorageRelationshipsDiagnostic.alreadyDeclared("_reduceRelationships(_:)")
             ))
             return []
         }
@@ -130,7 +130,7 @@ public struct StorageRelationshipsMacro: MemberMacro {
             ))
         }
 
-        // Combined reduceRelationships(_:) — composes with @Storage's
+        // Combined _reduceRelationships(_:) — composes with @Storage's
         // default: branch without colliding with a user-written reduceCustom(_:).
         // Only DidLoadNestedItem is generated; bulk ByParents load is out of
         // scope — see the doc comment on `StorageRelationships` for why.
@@ -139,21 +139,21 @@ public struct StorageRelationshipsMacro: MemberMacro {
         // rather than a multi-line \(raw:) interpolation followed by more
         // literal text in the same triple-quote — the latter doesn't
         // reindent predictably (see StorageMacro's identical fix).
-        var reduceRelationshipsLines: [String] = [
-            "mutating func reduceRelationships(_ action: some Action) {",
+        var _reduceRelationshipsLines: [String] = [
+            "mutating func _reduceRelationships(_ action: some Action) {",
             "    switch action {",
         ]
         for relationship in relationships {
-            reduceRelationshipsLines.append("    case let action as Actions.DidLoadNestedItem<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
-            reduceRelationshipsLines.append("        byId.insert(item: action.item)")
-            reduceRelationshipsLines.append("        \(relationship.propertyName)[action.parentId] = action.item.id")
-            reduceRelationshipsLines.append("")
+            _reduceRelationshipsLines.append("    case let action as Actions.DidLoadNestedItem<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
+            _reduceRelationshipsLines.append("        byId.insert(item: action.item)")
+            _reduceRelationshipsLines.append("        \(relationship.propertyName)[action.parentId] = action.item.id")
+            _reduceRelationshipsLines.append("")
         }
-        reduceRelationshipsLines.append("    default:")
-        reduceRelationshipsLines.append("        break")
-        reduceRelationshipsLines.append("    }")
-        reduceRelationshipsLines.append("}")
-        members.append(DeclSyntax(stringLiteral: reduceRelationshipsLines.joined(separator: "\n")))
+        _reduceRelationshipsLines.append("    default:")
+        _reduceRelationshipsLines.append("        break")
+        _reduceRelationshipsLines.append("    }")
+        _reduceRelationshipsLines.append("}")
+        members.append(DeclSyntax(stringLiteral: _reduceRelationshipsLines.joined(separator: "\n")))
 
         // Accessor per relationship — overload of `<item>By(...)`, matching
         //    @Storage's own accessor base name (e.g. `restaurantBy(id:)`).
@@ -211,7 +211,7 @@ public struct StorageRelationshipsMacro: MemberMacro {
         return names
     }
 
-    /// Matches on name + parameter labels (e.g. "reduceRelationships(_)",
+    /// Matches on name + parameter labels (e.g. "_reduceRelationships(_)",
     /// "restaurantBy(review)") — the same fix already applied once in
     /// @Storage's own escape-hatch check, for the same reason: matching bare
     /// names alone would mistake unrelated overloads for each other.

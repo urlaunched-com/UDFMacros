@@ -23,7 +23,7 @@ public enum StorageRelationshipsDiagnostic: DiagnosticMessage {
         switch self {
         case .requiresStorage:
             return "@StorageRelationships requires @Storage(_:) on the same declaration — "
-                + "without it, the generated reduceRelationships(_:) is never called."
+                + "without it, the generated _reduceRelationships(_:) is never called."
         case let .duplicateName(name):
             return "Relationship name '\(name)' is used more than once. Pass an explicit "
                 + "`name:` to disambiguate two relationships to the same parent type."

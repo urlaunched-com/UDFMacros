@@ -1939,7 +1939,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -1949,7 +1949,7 @@ final class UDFMacrosTests: XCTestCase {
 
                     var byReviewId: [Review.ID: Restaurant.ID] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
                             byId.insert(item: action.item)
@@ -2010,7 +2010,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -2024,7 +2024,7 @@ final class UDFMacrosTests: XCTestCase {
 
                     var byDishId: [Dish.ID: Restaurant.ID] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
                             byId.insert(item: action.item)
@@ -2064,7 +2064,7 @@ final class UDFMacrosTests: XCTestCase {
     }
 
     /// @StorageRelationships without @Storage on the same declaration is a
-    /// compile-time error, not a silently-inert reduceRelationships(_:).
+    /// compile-time error, not a silently-inert _reduceRelationships(_:).
     func testStorageRelationshipsRequiresStorage() throws {
         #if canImport(UDFMacrosMacros)
             assertMacroExpansion(
@@ -2079,7 +2079,7 @@ final class UDFMacrosTests: XCTestCase {
                 """,
                 diagnostics: [
                     DiagnosticSpec(
-                        message: "@StorageRelationships requires @Storage(_:) on the same declaration — without it, the generated reduceRelationships(_:) is never called.",
+                        message: "@StorageRelationships requires @Storage(_:) on the same declaration — without it, the generated _reduceRelationships(_:) is never called.",
                         line: 1,
                         column: 1
                     ),
@@ -2126,7 +2126,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -2145,7 +2145,7 @@ final class UDFMacrosTests: XCTestCase {
         #endif
     }
 
-    /// Both reduceRelationships(_:) and a user-written reduceCustom(_:) fire from
+    /// Both _reduceRelationships(_:) and a user-written reduceCustom(_:) fire from
     /// default: — not exclusive-or.
     func testStorageWiresBothRelationshipsAndReduceCustom() throws {
         #if canImport(UDFMacrosMacros)
@@ -2194,7 +2194,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                             reduceCustom(action)
                         }
                     }
@@ -2205,7 +2205,7 @@ final class UDFMacrosTests: XCTestCase {
 
                     var byReviewId: [Review.ID: Restaurant.ID] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
                             byId.insert(item: action.item)
@@ -2263,7 +2263,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
