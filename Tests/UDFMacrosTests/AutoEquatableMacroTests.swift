@@ -995,4 +995,85 @@ final class AutoEquatableMacroTests: XCTestCase {
             throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
+
+    func testAutoEquatableForEnumWithCustomClosureTypeAliasViaIgnoringTypeNames() throws {
+        #if canImport(UDFMacrosMacros)
+            // Reproduces the example from https://github.com/urlaunched-com/UDFMacros/issues/10:
+            // a custom closure typealias that SwiftSyntax cannot resolve on its own, excluded via
+            // the `ignoringTypeNames` argument instead of relying on a hardcoded name in the macro.
+            assertMacroExpansion(
+                #"""
+                typealias CommandWith<T> = (T) -> Void
+
+                @AutoEquatable(ignoringTypeNames: ["CommandWith"]) enum Route {
+                    case details(id: String, action: CommandWith<Item>)
+                    case simple(name: String)
+                }
+                """#,
+                expandedSource: #"""
+                typealias CommandWith<T> = (T) -> Void
+
+                enum Route {
+                    case details(id: String, action: CommandWith<Item>)
+                    case simple(name: String)
+                }
+
+                extension Route: Equatable {
+                    static func ==(lhs: Route, rhs: Route) -> Bool {
+                        switch (lhs, rhs) {
+                        case let (.details(lhs0, _), .details(rhs0, _)):
+                            lhs0 == rhs0
+                        case let (.simple(lhs0), .simple(rhs0)):
+                            lhs0 == rhs0
+                        default:
+                            false
+                        }
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoEquatableIgnoringTypeNamesDoesNotAffectUnlistedTypes() throws {
+        #if canImport(UDFMacrosMacros)
+            // A type name that isn't passed to `ignoringTypeNames` keeps its normal behavior,
+            // even if it happens to be another typealias in scope.
+            assertMacroExpansion(
+                #"""
+                typealias CommandWith<T> = (T) -> Void
+                typealias OtherAlias<T> = (T) -> Void
+
+                @AutoEquatable(ignoringTypeNames: ["CommandWith"]) enum Route {
+                    case details(id: String, action: CommandWith<Item>, other: OtherAlias<Item>)
+                }
+                """#,
+                expandedSource: #"""
+                typealias CommandWith<T> = (T) -> Void
+                typealias OtherAlias<T> = (T) -> Void
+
+                enum Route {
+                    case details(id: String, action: CommandWith<Item>, other: OtherAlias<Item>)
+                }
+
+                extension Route: Equatable {
+                    static func ==(lhs: Route, rhs: Route) -> Bool {
+                        switch (lhs, rhs) {
+                        case let (.details(lhs0, _, lhs2), .details(rhs0, _, rhs2)):
+                            lhs0 == rhs0 && lhs2 == rhs2
+                        default:
+                            false
+                        }
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
 }

@@ -508,4 +508,53 @@ final class AutoHashableMacroTests: XCTestCase {
             throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
+
+    func testAutoHashableForEnumWithCustomClosureTypeAliasViaIgnoringTypeNames() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                typealias CommandWith<T> = (T) -> Void
+
+                @AutoHashable(ignoringTypeNames: ["CommandWith"]) enum Route {
+                    case details(id: String, action: CommandWith<Item>)
+                    case simple(name: String)
+                }
+                """#,
+                expandedSource: #"""
+                typealias CommandWith<T> = (T) -> Void
+
+                enum Route {
+                    case details(id: String, action: CommandWith<Item>)
+                    case simple(name: String)
+                }
+
+                extension Route: Hashable {
+                    static func ==(lhs: Route, rhs: Route) -> Bool {
+                        switch (lhs, rhs) {
+                        case let (.details(lhs0, _), .details(rhs0, _)):
+                            lhs0 == rhs0
+                        case let (.simple(lhs0), .simple(rhs0)):
+                            lhs0 == rhs0
+                        default:
+                            false
+                        }
+                    }
+                    func hash(into hasher: inout Hasher) {
+                        switch self {
+                        case let .details(value0, _):
+                            hasher.combine("details")
+                            hasher.combine(value0)
+                        case let .simple(value0):
+                            hasher.combine("simple")
+                            hasher.combine(value0)
+                        }
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
 }
