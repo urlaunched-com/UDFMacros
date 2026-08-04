@@ -171,8 +171,15 @@ public struct StorageRelationshipsMacro: MemberMacro {
             reduceRelationshipsLines.append("        \(relationship.propertyName)[action.parentId] = action.item.id")
             reduceRelationshipsLines.append("")
         }
-        // hasMany's three cases — additive (.append), matching the
-        // union convention confirmed in AllDishes/AllReviews.
+        // hasMany's cases — additive (.append), matching the union convention
+        // confirmed in AllDishes/AllReviews. DeleteNestedItem uses the
+        // full-item form only (Actions.DeleteNestedItem<Parent.ID, Item>),
+        // matching the confirmed AllLabels.swift precedent — the ID-only form
+        // seen in AllAudioBookmarks.swift wasn't used as a basis, since that
+        // file also replaces instead of appending on load (a stale convention
+        // predating the .append union behavior confirmed for this macro).
+        // Actions.DidUpdateNestedItem is deliberately not generated: zero
+        // real usages found across Librarius/Wain/FlatPlanet.
         for relationship in hasManyRelationships {
             reduceRelationshipsLines.append("    case let action as Actions.DidLoadNestedItem<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
             reduceRelationshipsLines.append("        byId.insert(item: action.item)")
@@ -189,6 +196,11 @@ public struct StorageRelationshipsMacro: MemberMacro {
             reduceRelationshipsLines.append("            byId.insert(items: children)")
             reduceRelationshipsLines.append("            \(relationship.propertyName).append(children.ids, by: parentId)")
             reduceRelationshipsLines.append("        }")
+            reduceRelationshipsLines.append("")
+
+            reduceRelationshipsLines.append("    case let action as Actions.DeleteNestedItem<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
+            reduceRelationshipsLines.append("        byId.removeValue(forKey: action.item.id)")
+            reduceRelationshipsLines.append("        \(relationship.propertyName)[action.parentId]?.remove(action.item.id)")
             reduceRelationshipsLines.append("")
         }
         reduceRelationshipsLines.append("    default:")

@@ -2294,6 +2294,10 @@ final class UDFMacrosTests: XCTestCase {
                                 byRestaurantId.append(children.ids, by: parentId)
                             }
 
+                        case let action as Actions.DeleteNestedItem<Restaurant.ID, Dish>:
+                            byId.removeValue(forKey: action.item.id)
+                            byRestaurantId[action.parentId]?.remove(action.item.id)
+
                         default:
                             break
                         }
@@ -2377,6 +2381,10 @@ final class UDFMacrosTests: XCTestCase {
                                 byId.insert(items: children)
                                 byCategoryId.append(children.ids, by: parentId)
                             }
+
+                        case let action as Actions.DeleteNestedItem<Category.ID, Restaurant>:
+                            byId.removeValue(forKey: action.item.id)
+                            byCategoryId[action.parentId]?.remove(action.item.id)
 
                         default:
                             break
@@ -2518,6 +2526,10 @@ final class UDFMacrosTests: XCTestCase {
                                 byRestaurantId.append(children.ids, by: parentId)
                             }
 
+                        case let action as Actions.DeleteNestedItem<Restaurant.ID, Dish>:
+                            byId.removeValue(forKey: action.item.id)
+                            byRestaurantId[action.parentId]?.remove(action.item.id)
+
                         default:
                             break
                         }
@@ -2599,9 +2611,95 @@ final class UDFMacrosTests: XCTestCase {
                                 byRestaurantId.append(children.ids, by: parentId)
                             }
 
+                        case let action as Actions.DeleteNestedItem<Restaurant.ID, Dish>:
+                            byId.removeValue(forKey: action.item.id)
+                            byRestaurantId[action.parentId]?.remove(action.item.id)
+
                         default:
                             break
                         }
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// DeleteNestedItem for hasMany — full-item form only, matching the
+    /// confirmed AllLabels.swift precedent. Removes the item from byId and from
+    /// the OrderedSet under its parent, mirroring the .remove(_:) pattern seen
+    /// in every real DeleteNestedItem usage in Librarius/Wain/FlatPlanet.
+    func testStorageRelationshipsHasManyDeleteNestedItem() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Dish.self)
+                @StorageRelationships(
+                    .hasMany(Restaurant.self)
+                )
+                struct AllDishes: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllDishes: Reducible {
+
+                    var byId: [Dish.ID: Dish] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Dish>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Dish>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Dish>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Dish>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            _reduceRelationships(action)
+                        }
+                    }
+
+                    func dishBy(id: Dish.ID) -> Dish {
+                        byId[id] ?? .empty
+                    }
+
+                    var byRestaurantId: [Restaurant.ID: OrderedSet<Dish.ID>] = [:]
+
+                    mutating func _reduceRelationships(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadNestedItem<Restaurant.ID, Dish>:
+                            byId.insert(item: action.item)
+                            byRestaurantId.append(action.item.id, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedItems<Restaurant.ID, Dish>:
+                            byId.insert(items: action.items)
+                            byRestaurantId.append(action.items.ids, by: action.parentId)
+
+                        case let action as Actions.DidLoadNestedByParents<Restaurant.ID, Dish>:
+                            for (parentId, children) in action.dictionary {
+                                byId.insert(items: children)
+                                byRestaurantId.append(children.ids, by: parentId)
+                            }
+
+                        case let action as Actions.DeleteNestedItem<Restaurant.ID, Dish>:
+                            byId.removeValue(forKey: action.item.id)
+                            byRestaurantId[action.parentId]?.remove(action.item.id)
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                        Array(byRestaurantId[id] ?? [])
                     }
                 }
                 """,
