@@ -10,8 +10,8 @@ public enum RelationshipDescriptor {
 /// Attaches one or more storage relationships to an `@Storage`-annotated `Reducible`.
 ///
 /// Must be combined with `@Storage(_:)` on the same declaration — `@StorageRelationships`
-/// generates the relationship dictionaries and a `reduceRelationships(_:)` method, but
-/// it's `@Storage`'s generated `reduce(_:)` that actually calls `reduceRelationships`.
+/// generates the relationship dictionaries and a `_reduceRelationships(_:)` method, but
+/// it's `@Storage`'s generated `reduce(_:)` that actually calls `_reduceRelationships`.
 /// Using `@StorageRelationships` without `@Storage` is a compile-time error.
 ///
 ///     @Storage(Restaurant.self)
@@ -25,14 +25,14 @@ public enum RelationshipDescriptor {
 ///
 /// Generates, per `.hasOne` relationship:
 /// - `var by<Parent>Id: [Parent.ID: Item.ID] = [:]`
-/// - a `reduceRelationships(_:)` case for `Actions.DidLoadNestedItem<Parent.ID, Item>`
+/// - a `_reduceRelationships(_:)` case for `Actions.DidLoadNestedItem<Parent.ID, Item>`
 /// - an accessor overload `<item>By(<label>: Parent.ID) -> Item.ID?`
 ///
 /// Generates, per `.hasMany` relationship:
 /// - `var by<Parent>Id: [Parent.ID: OrderedSet<Item.ID>] = [:]` — same naming
 ///   scheme as `.hasOne` (no pluralization on the property: the key is still a
 ///   single `Parent.ID`, only the *value* is a collection)
-/// - three `reduceRelationships(_:)` cases, all additive via `.append`:
+/// - three `_reduceRelationships(_:)` cases, all additive via `.append`:
 ///   `Actions.DidLoadNestedItem<Parent.ID, Item>`,
 ///   `Actions.DidLoadNestedItems<Parent.ID, Item>`, and
 ///   `Actions.DidLoadNestedByParents<Parent.ID, Item>`
@@ -54,6 +54,12 @@ public enum RelationshipDescriptor {
 /// diverges here — `by<Parent>Id` is a strict convention, but argument labels
 /// (`review`, `fortuneResult`, `dishID`) are hand-picked for readability, not a
 /// mechanical function of the type name.
+///
+/// The `_reduceRelationships` / `_` prefix marks it as a generated, reserved
+/// member — matching the convention already used elsewhere in this codebase
+/// for internal/framework-generated members (e.g. `_OnContainerDidLoad`,
+/// `_BindableAction`). It signals "generated, don't hand-write a method with
+/// this exact name" the same way those do.
 ///
 /// Bundling relationships into one variadic call (rather than repeating
 /// `@StorageRelationship(...)` per relationship) is deliberate: only within a

@@ -1939,7 +1939,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -1949,7 +1949,7 @@ final class UDFMacrosTests: XCTestCase {
 
                     var byReviewId: [Review.ID: Restaurant.ID] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
                             byId.insert(item: action.item)
@@ -2010,7 +2010,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -2024,7 +2024,7 @@ final class UDFMacrosTests: XCTestCase {
 
                     var byDishId: [Dish.ID: Restaurant.ID] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
                             byId.insert(item: action.item)
@@ -2079,7 +2079,7 @@ final class UDFMacrosTests: XCTestCase {
                 """,
                 diagnostics: [
                     DiagnosticSpec(
-                        message: "@StorageRelationships requires @Storage(_:) on the same declaration — without it, the generated reduceRelationships(_:) is never called.",
+                        message: "@StorageRelationships requires @Storage(_:) on the same declaration — without it, the generated _reduceRelationships(_:) is never called.",
                         line: 1,
                         column: 1
                     ),
@@ -2126,7 +2126,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -2194,7 +2194,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                             reduceCustom(action)
                         }
                     }
@@ -2205,7 +2205,7 @@ final class UDFMacrosTests: XCTestCase {
 
                     var byReviewId: [Review.ID: Restaurant.ID] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
                             byId.insert(item: action.item)
@@ -2268,7 +2268,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -2278,7 +2278,7 @@ final class UDFMacrosTests: XCTestCase {
 
                     var byRestaurantId: [Restaurant.ID: OrderedSet<Dish.ID>] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Restaurant.ID, Dish>:
                             byId.insert(item: action.item)
@@ -2346,7 +2346,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -2358,7 +2358,7 @@ final class UDFMacrosTests: XCTestCase {
 
                     var byCategoryId: [Category.ID: OrderedSet<Restaurant.ID>] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
                             byId.insert(item: action.item)
@@ -2436,7 +2436,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -2447,7 +2447,7 @@ final class UDFMacrosTests: XCTestCase {
                 """,
                 diagnostics: [
                     DiagnosticSpec(
-                        message: "'Producer' is already used as a relationship parent type on this declaration. Two relationships to the same parent type — regardless of whether they're `.hasOne` or `.hasMany` — would generate a duplicate `Actions.DidLoadNestedItem<Producer.ID, _>` case in reduceRelationships(_:), even if their storage property names differ via `name:`.",
+                        message: "'Producer' is already used as a relationship parent type on this declaration. Two relationships to the same parent type — regardless of whether they're `.hasOne` or `.hasMany` — would generate a duplicate `Actions.DidLoadNestedItem<Producer.ID, _>` case in _reduceRelationships(_:), even if their storage property names differ via `name:`.",
                         line: 4,
                         column: 5
                     ),
@@ -2494,7 +2494,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -2502,7 +2502,7 @@ final class UDFMacrosTests: XCTestCase {
                         byId[id] ?? .empty
                     }
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Restaurant.ID, Dish>:
                             byId.insert(item: action.item)
@@ -2573,7 +2573,7 @@ final class UDFMacrosTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                         }
                     }
 
@@ -2583,7 +2583,7 @@ final class UDFMacrosTests: XCTestCase {
 
                     var byRestaurantId: [Restaurant.ID: OrderedSet<Dish.ID>] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Restaurant.ID, Dish>:
                             byId.insert(item: action.item)

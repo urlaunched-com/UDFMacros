@@ -136,10 +136,10 @@ public struct StorageRelationshipsMacro: MemberMacro {
         let existingPropertyNames = existingStoredPropertyNames(in: declaration)
         let existingFunctionSignatures = existingFunctionSignatures(in: declaration)
 
-        if existingFunctionSignatures.contains("reduceRelationships(_)") {
+        if existingFunctionSignatures.contains("_reduceRelationships(_)") {
             context.diagnose(Diagnostic(
                 node: node,
-                message: StorageRelationshipsDiagnostic.alreadyDeclared("reduceRelationships(_:)")
+                message: StorageRelationshipsDiagnostic.alreadyDeclared("_reduceRelationships(_:)")
             ))
             return []
         }
@@ -160,9 +160,9 @@ public struct StorageRelationshipsMacro: MemberMacro {
             ))
         }
 
-        // reduceRelationships(_:) — both kinds combined into one switch.
+        // _reduceRelationships(_:) — both kinds combined into one switch.
         var reduceRelationshipsLines: [String] = [
-            "mutating func reduceRelationships(_ action: some Action) {",
+            "mutating func _reduceRelationships(_ action: some Action) {",
             "    switch action {",
         ]
         for relationship in hasOneRelationships {
@@ -268,7 +268,7 @@ public struct StorageRelationshipsMacro: MemberMacro {
         return names
     }
 
-    /// Matches on name + parameter labels (e.g. "reduceRelationships(_)",
+    /// Matches on name + parameter labels (e.g. "_reduceRelationships(_)",
     /// "restaurantBy(review)") — the same fix already applied once in
     /// @Storage's own escape-hatch check, for the same reason: matching bare
     /// names alone would mistake unrelated overloads for each other.
