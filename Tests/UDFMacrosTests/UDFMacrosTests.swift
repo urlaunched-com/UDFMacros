@@ -2064,7 +2064,7 @@ final class UDFMacrosTests: XCTestCase {
     }
 
     /// @StorageRelationships without @Storage on the same declaration is a
-    /// compile-time error, not a silently-inert reduceRelationships(_:).
+    /// compile-time error, not a silently-inert _reduceRelationships(_:).
     func testStorageRelationshipsRequiresStorage() throws {
         #if canImport(UDFMacrosMacros)
             assertMacroExpansion(
@@ -2145,7 +2145,7 @@ final class UDFMacrosTests: XCTestCase {
         #endif
     }
 
-    /// Both reduceRelationships(_:) and a user-written reduceCustom(_:) fire from
+    /// Both _reduceRelationships(_:) and a user-written reduceCustom(_:) fire from
     /// default: — not exclusive-or.
     func testStorageWiresBothRelationshipsAndReduceCustom() throws {
         #if canImport(UDFMacrosMacros)

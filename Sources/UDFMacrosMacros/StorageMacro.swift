@@ -174,9 +174,7 @@ public struct StorageMacro: MemberMacro {
     /// silently skip generating `restaurantBy(id:)` whenever any other
     /// `restaurantBy(...)` overload already existed.
     private static func functionSignature(_ funcDecl: FunctionDeclSyntax) -> String {
-        let labels = funcDecl.signature.parameterClause.parameters.map { param in
-            param.firstName.text == "_" ? "_" : param.firstName.text
-        }
+        let labels = funcDecl.signature.parameterClause.parameters.map { $0.firstName.text }
         return "\(funcDecl.name.text)(\(labels.map { "\($0):" }.joined()))"
     }
 

@@ -136,6 +136,8 @@ public struct StorageRelationshipsMacro: MemberMacro {
         let existingPropertyNames = existingStoredPropertyNames(in: declaration)
         let existingFunctionSignatures = existingFunctionSignatures(in: declaration)
 
+        // underscore prefix marks generated/reserved members, matching the
+        // convention already used for internal actions like `_OnContainerDidLoad`.
         if existingFunctionSignatures.contains("_reduceRelationships(_)") {
             context.diagnose(Diagnostic(
                 node: node,
@@ -161,6 +163,11 @@ public struct StorageRelationshipsMacro: MemberMacro {
         }
 
         // _reduceRelationships(_:) — both kinds combined into one switch.
+        //
+        // Built as a flat line array + single DeclSyntax(stringLiteral:)
+        // rather than a multi-line \(raw:) interpolation followed by more
+        // literal text in the same triple-quote — the latter doesn't
+        // reindent predictably (see StorageMacro's identical fix).
         var reduceRelationshipsLines: [String] = [
             "mutating func _reduceRelationships(_ action: some Action) {",
             "    switch action {",
