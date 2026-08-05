@@ -49,13 +49,13 @@ public struct StorageMacro: MemberMacro {
         }
 
         if !existingNames.contains("reduce(_:)") {
-            // Not exclusive-or: reduceRelationships(_:) and reduceCustom(_:)
+            // Not exclusive-or: _reduceRelationships(_:) and reduceCustom(_:)
             // each have their own switch with default: break, so calling
             // both unconditionally is safe regardless of which one an
             // action actually matches.
             var defaultCaseLines: [String] = []
             if hasRelationships {
-                defaultCaseLines.append("reduceRelationships(action)")
+                defaultCaseLines.append("_reduceRelationships(action)")
             }
             if existingNames.contains("reduceCustom(_:)") {
                 defaultCaseLines.append("reduceCustom(action)")
@@ -174,9 +174,7 @@ public struct StorageMacro: MemberMacro {
     /// silently skip generating `restaurantBy(id:)` whenever any other
     /// `restaurantBy(...)` overload already existed.
     private static func functionSignature(_ funcDecl: FunctionDeclSyntax) -> String {
-        let labels = funcDecl.signature.parameterClause.parameters.map { param in
-            param.firstName.text == "_" ? "_" : param.firstName.text
-        }
+        let labels = funcDecl.signature.parameterClause.parameters.map { $0.firstName.text }
         return "\(funcDecl.name.text)(\(labels.map { "\($0):" }.joined()))"
     }
 
