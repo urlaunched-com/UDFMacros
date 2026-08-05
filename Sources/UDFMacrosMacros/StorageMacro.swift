@@ -16,7 +16,7 @@ public struct StorageMacro: MemberMacro {
             return []
         }
 
-        guard let itemTypeName = itemTypeName(from: node, context: context) else {
+        guard let (itemTypeName, hasEmpty) = parseArguments(from: node, context: context) else {
             context.diagnose(Diagnostic(node: Syntax(node), message: StorageDiagnostic.invalidArgument))
             return []
         }
@@ -97,10 +97,13 @@ public struct StorageMacro: MemberMacro {
         let accessorName = "\(lowerCamelCase(itemTypeName))By"
 
         if !existingNames.contains("\(accessorName)(id:)") {
+            let returnType = hasEmpty ? itemTypeName : "\(itemTypeName)?"
+            let body = hasEmpty ? "byId[id] ?? .empty" : "byId[id]"
+
             members.append(
                 """
-                func \(raw: accessorName)(id: \(raw: itemTypeName).ID) -> \(raw: itemTypeName) {
-                    byId[id] ?? .empty
+                func \(raw: accessorName)(id: \(raw: itemTypeName).ID) -> \(raw: returnType) {
+                    \(raw: body)
                 }
                 """
             )
@@ -130,14 +133,17 @@ public struct StorageMacro: MemberMacro {
         return typeName[..<wordBoundary].lowercased() + typeName[wordBoundary...]
     }
 
-    /// Expects exactly one argument shaped like `Movie.self`.
-    private static func itemTypeName(
+    /// Expects `Item.self` as the first argument, optionally followed by
+    /// `hasEmpty: <bool literal>`. `hasEmpty` defaults to `true` when
+    /// omitted, matching the existing codebase convention where most `Item`
+    /// models already declare `static var empty`.
+    private static func parseArguments(
         from node: AttributeSyntax,
         context _: some MacroExpansionContext
-    ) -> String? {
+    ) -> (itemTypeName: String, hasEmpty: Bool)? {
         guard
             let arguments = node.arguments?.as(LabeledExprListSyntax.self),
-            arguments.count == 1,
+            arguments.count == 1 || arguments.count == 2,
             let firstArg = arguments.first,
             let memberAccess = firstArg.expression.as(MemberAccessExprSyntax.self),
             memberAccess.declName.baseName.text == "self",
@@ -146,7 +152,19 @@ public struct StorageMacro: MemberMacro {
             return nil
         }
 
-        return base.baseName.text
+        var hasEmpty = true
+        if arguments.count == 2 {
+            let secondArg = arguments[arguments.index(after: arguments.startIndex)]
+            guard
+                secondArg.label?.text == "hasEmpty",
+                let boolLiteral = secondArg.expression.as(BooleanLiteralExprSyntax.self)
+            else {
+                return nil
+            }
+            hasEmpty = boolLiteral.literal.tokenKind == .keyword(.true)
+        }
+
+        return (base.baseName.text, hasEmpty)
     }
 
     private static func existingMemberNames(_ declaration: some DeclGroupSyntax) -> Set<String> {

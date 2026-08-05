@@ -1895,7 +1895,78 @@ final class UDFMacrosTests: XCTestCase {
                 }
                 """,
                 diagnostics: [
-                    DiagnosticSpec(message: "@Storage requires a single argument in the form 'TypeName.self'", line: 1, column: 1),
+                    DiagnosticSpec(message: "@Storage requires 'TypeName.self' as the first argument, optionally followed by 'hasEmpty: Bool'", line: 1, column: 1),
+                ],
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// `hasEmpty: false` generates an optional-returning accessor instead of
+    /// the `.empty`-fallback default — for `Item` types with no static
+    /// `empty` member.
+    func testStorageHasEmptyFalseGeneratesOptionalAccessor() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Restaurant.self, hasEmpty: false)
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+
+                    var byId: [Restaurant.ID: Restaurant] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Restaurant>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Restaurant>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Restaurant>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Restaurant>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func restaurantBy(id: Restaurant.ID) -> Restaurant? {
+                        byId[id]
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// Malformed second argument (wrong label or non-bool-literal value)
+    /// is a diagnostic, same as a malformed first argument.
+    func testStorageInvalidHasEmptyArgument() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Restaurant.self, isEmpty: false)
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(message: "@Storage requires 'TypeName.self' as the first argument, optionally followed by 'hasEmpty: Bool'", line: 1, column: 1),
                 ],
                 macros: testMacros
             )

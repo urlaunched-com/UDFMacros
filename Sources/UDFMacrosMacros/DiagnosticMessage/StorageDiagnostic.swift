@@ -21,7 +21,7 @@ public enum StorageDiagnostic: DiagnosticMessage {
         case .unsupportedType:
             return "@Storage can only be applied to a 'struct' declaration"
         case .invalidArgument:
-            return "@Storage requires a single argument in the form 'TypeName.self'"
+            return "@Storage requires 'TypeName.self' as the first argument, optionally followed by 'hasEmpty: Bool'"
         }
     }
 
