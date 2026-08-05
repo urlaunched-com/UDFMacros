@@ -36,6 +36,15 @@ public struct StorageMacro: MemberMacro {
             )
         }
 
+        if existingNames.contains("reduce(_:)") {
+            // The struct owns `reduce(_:)` entirely now, so the standard
+            // CRUD cases below are silently skipped — warn so the author
+            // knows to move custom logic into `reduceCustom(_:)` instead,
+            // which keeps the generated cases alongside it.
+            let diagnosticNode = existingReduceFunctionDecl(declaration).map(Syntax.init) ?? Syntax(node)
+            context.diagnose(Diagnostic(node: diagnosticNode, message: StorageDiagnostic.handWrittenReduce))
+        }
+
         if !existingNames.contains("reduce(_:)") {
             let defaultCase = existingNames.contains("reduceCustom(_:)")
                 ? "reduceCustom(action)"
@@ -136,6 +145,20 @@ public struct StorageMacro: MemberMacro {
         }
 
         return names
+    }
+
+    /// Finds the hand-written `reduce(_:)` declaration on the attached
+    /// struct, if any, so diagnostics can point at it directly instead of
+    /// the `@Storage` attribute.
+    private static func existingReduceFunctionDecl(_ declaration: some DeclGroupSyntax) -> FunctionDeclSyntax? {
+        for member in declaration.memberBlock.members {
+            if let funcDecl = member.decl.as(FunctionDeclSyntax.self),
+               functionSignature(funcDecl) == "reduce(_:)"
+            {
+                return funcDecl
+            }
+        }
+        return nil
     }
 
     /// Builds a name+labels key (e.g. "restaurantBy(id:)", "reduce(_:)") so
