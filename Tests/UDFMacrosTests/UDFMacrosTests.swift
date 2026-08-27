@@ -1,3 +1,4 @@
+import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
@@ -1643,6 +1644,14 @@ final class UDFMacrosTests: XCTestCase {
                     }
                 }
                 """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "This struct declares 'reduce(_:)' by hand, so @Storage won't generate the standard DidLoadItems/DidLoadItem/DidUpdateItem/DeleteItem handling. Consider moving custom logic into 'reduceCustom(_:)' instead, so the standard cases are generated automatically.",
+                        line: 3,
+                        column: 5,
+                        severity: .warning
+                    ),
+                ],
                 macros: testMacros
             )
         #else
