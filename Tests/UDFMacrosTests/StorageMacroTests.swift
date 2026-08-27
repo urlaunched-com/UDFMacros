@@ -132,6 +132,14 @@ final class StorageMacroTests: XCTestCase {
                     }
                 }
                 """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "This struct declares 'reduce(_:)' by hand, so @Storage won't generate the standard DidLoadItems/DidLoadItem/DidUpdateItem/DeleteItem handling. Consider moving custom logic into 'reduceCustom(_:)' instead, so the standard cases are generated automatically.",
+                        line: 3,
+                        column: 5,
+                        severity: .warning
+                    ),
+                ],
                 macros: testMacros
             )
         #else
@@ -393,7 +401,7 @@ final class StorageMacroTests: XCTestCase {
         #endif
     }
 
-    /// Both reduceRelationships(_:) and a user-written reduceCustom(_:) fire from
+    /// Both _reduceRelationships(_:) and a user-written reduceCustom(_:) fire from
     /// default: — not exclusive-or.
     func testStorageWiresBothRelationshipsAndReduceCustom() throws {
         #if canImport(UDFMacrosMacros)
@@ -442,7 +450,7 @@ final class StorageMacroTests: XCTestCase {
                             byId.removeValue(forKey: action.item.id)
 
                         default:
-                            reduceRelationships(action)
+                            _reduceRelationships(action)
                             reduceCustom(action)
                         }
                     }
@@ -453,7 +461,7 @@ final class StorageMacroTests: XCTestCase {
 
                     var byReviewId: [Review.ID: Restaurant.ID] = [:]
 
-                    mutating func reduceRelationships(_ action: some Action) {
+                    mutating func _reduceRelationships(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
                             byId.insert(item: action.item)
