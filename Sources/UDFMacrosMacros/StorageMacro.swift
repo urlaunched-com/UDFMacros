@@ -26,6 +26,18 @@ public struct StorageMacro: MemberMacro {
         // the standard four (see the doc comment on `@Storage`).
         let existingNames = existingMemberNames(declaration)
 
+        // @StorageRelationships is a sibling attribute, not something this
+        // macro parses — attached macros on the same declaration don't see
+        // each other's generated members during expansion, only the original
+        // declaration syntax, so this is a name-only check (mirrors
+        // @StorageRelationships' own check for @Storage's presence).
+        let hasRelationships = declaration.attributes.contains { attribute in
+            guard case let .attribute(attr) = attribute,
+                  let identifier = attr.attributeName.as(IdentifierTypeSyntax.self)
+            else { return false }
+            return identifier.name.text == "StorageRelationships"
+        }
+
         var members: [DeclSyntax] = []
 
         if !existingNames.contains("byId") {
@@ -46,32 +58,49 @@ public struct StorageMacro: MemberMacro {
         }
 
         if !existingNames.contains("reduce(_:)") {
-            let defaultCase = existingNames.contains("reduceCustom(_:)")
-                ? "reduceCustom(action)"
-                : "break"
+            // Not exclusive-or: _reduceRelationships(_:) and reduceCustom(_:)
+            // each have their own switch with default: break, so calling
+            // both unconditionally is safe regardless of which one an
+            // action actually matches.
+            var defaultCaseLines: [String] = []
+            if hasRelationships {
+                defaultCaseLines.append("_reduceRelationships(action)")
+            }
+            if existingNames.contains("reduceCustom(_:)") {
+                defaultCaseLines.append("reduceCustom(action)")
+            }
+            if defaultCaseLines.isEmpty {
+                defaultCaseLines.append("break")
+            }
 
-            members.append(
-                """
-                mutating func reduce(_ action: some Action) {
-                    switch action {
-                    case let action as Actions.DidLoadItems<\(raw: itemTypeName)>:
-                        byId.insert(items: action.items)
+            // Built as a flat line array + single DeclSyntax(stringLiteral:)
+            // rather than a multi-line \(raw:) interpolation followed by more
+            // literal text in the same triple-quote — the latter doesn't
+            // reindent predictably once defaultCaseLines has more than one line.
+            var reduceLines: [String] = [
+                "mutating func reduce(_ action: some Action) {",
+                "    switch action {",
+                "    case let action as Actions.DidLoadItems<\(itemTypeName)>:",
+                "        byId.insert(items: action.items)",
+                "",
+                "    case let action as Actions.DidLoadItem<\(itemTypeName)>:",
+                "        byId.insert(item: action.item)",
+                "",
+                "    case let action as Actions.DidUpdateItem<\(itemTypeName)>:",
+                "        byId[action.item.id] = action.item",
+                "",
+                "    case let action as Actions.DeleteItem<\(itemTypeName)>:",
+                "        byId.removeValue(forKey: action.item.id)",
+                "",
+                "    default:",
+            ]
+            for line in defaultCaseLines {
+                reduceLines.append("        \(line)")
+            }
+            reduceLines.append("    }")
+            reduceLines.append("}")
 
-                    case let action as Actions.DidLoadItem<\(raw: itemTypeName)>:
-                        byId.insert(item: action.item)
-
-                    case let action as Actions.DidUpdateItem<\(raw: itemTypeName)>:
-                        byId[action.item.id] = action.item
-
-                    case let action as Actions.DeleteItem<\(raw: itemTypeName)>:
-                        byId.removeValue(forKey: action.item.id)
-
-                    default:
-                        \(raw: defaultCase)
-                    }
-                }
-                """
-            )
+            members.append(DeclSyntax(stringLiteral: reduceLines.joined(separator: "\n")))
         }
 
         let accessorName = "\(lowerCamelCase(itemTypeName))By"
@@ -168,9 +197,7 @@ public struct StorageMacro: MemberMacro {
     /// silently skip generating `restaurantBy(id:)` whenever any other
     /// `restaurantBy(...)` overload already existed.
     private static func functionSignature(_ funcDecl: FunctionDeclSyntax) -> String {
-        let labels = funcDecl.signature.parameterClause.parameters.map { param in
-            param.firstName.text == "_" ? "_" : param.firstName.text
-        }
+        let labels = funcDecl.signature.parameterClause.parameters.map { $0.firstName.text }
         return "\(funcDecl.name.text)(\(labels.map { "\($0):" }.joined()))"
     }
 
