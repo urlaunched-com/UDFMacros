@@ -1,12 +1,24 @@
 // The Swift Programming Language
 // https://docs.swift.org/swift-book
 
+/// - Parameter ignoringTypeNames: Names of additional closure type aliases (e.g. a custom
+///   `typealias MyClosure = (Int) -> Void`) that should be excluded from the generated equality
+///   check, just like direct closure types are. SwiftSyntax cannot resolve typealiases during
+///   macro expansion, so any alias not in the built-in `Command`/`CommandWith...` family must be
+///   listed explicitly here:
+///   ```swift
+///   @AutoEquatable(ignoringTypeNames: ["MyClosure"])
+///   enum Route {
+///       case details(id: String, action: MyClosure)
+///   }
+///   ```
 @attached(extension, conformances: Equatable, names: named(==))
-public macro AutoEquatable() = #externalMacro(module: "UDFMacrosMacros", type: "AutoEquatableMacro")
+public macro AutoEquatable(ignoringTypeNames: [String] = []) = #externalMacro(module: "UDFMacrosMacros", type: "AutoEquatableMacro")
 
+/// - Parameter ignoringTypeNames: Same as `AutoEquatable(ignoringTypeNames:)` - additional
+///   closure type-alias names to exclude from both the generated equality check and hashing.
 @attached(extension, conformances: Hashable, names: arbitrary)
-public macro AutoHashable() = #externalMacro(module: "UDFMacrosMacros", type: "AutoHashableMacro")
-
+public macro AutoHashable(ignoringTypeNames: [String] = []) = #externalMacro(module: "UDFMacrosMacros", type: "AutoHashableMacro")
 @attached(peer)
 public macro SensitiveField() = #externalMacro(module: "UDFMacrosMacros", type: "SensitiveFieldMacro")
 
