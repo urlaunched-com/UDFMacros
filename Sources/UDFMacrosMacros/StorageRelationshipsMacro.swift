@@ -195,13 +195,13 @@ public struct StorageRelationshipsMacro: MemberMacro {
 
             reduceRelationshipsLines.append("    case let action as Actions.DidLoadNestedItems<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
             reduceRelationshipsLines.append("        byId.insert(items: action.items)")
-            reduceRelationshipsLines.append("        \(relationship.propertyName).append(action.items.ids, by: action.parentId)")
+            reduceRelationshipsLines.append("        \(relationship.propertyName).append(action.items, by: action.parentId)")
             reduceRelationshipsLines.append("")
 
             reduceRelationshipsLines.append("    case let action as Actions.DidLoadNestedByParents<\(relationship.parentTypeName).ID, \(itemTypeName)>:")
             reduceRelationshipsLines.append("        for (parentId, children) in action.dictionary {")
             reduceRelationshipsLines.append("            byId.insert(items: children)")
-            reduceRelationshipsLines.append("            \(relationship.propertyName).append(children.ids, by: parentId)")
+            reduceRelationshipsLines.append("            \(relationship.propertyName).append(children, by: parentId)")
             reduceRelationshipsLines.append("        }")
             reduceRelationshipsLines.append("")
 

@@ -4,7 +4,7 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-public struct StorageMacro: MemberMacro {
+public struct StorageMacro: MemberMacro, ExtensionMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -118,6 +118,28 @@ public struct StorageMacro: MemberMacro {
         return members
     }
 
+    /// Conforms the attached struct to UDF's `Storage` protocol —
+    /// `extension AllX: Storage {}` — so it can be passed into modules
+    /// generically as `some Storage<Item>`. Skipped when the struct already
+    /// declares `Storage` (or anything else) itself: Swift treats a second
+    /// declaration of the same conformance as a hard "redundant conformance"
+    /// error, not a warning, so this has to be a real check, not a formality.
+    public static func expansion(
+        of _: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingExtensionsOf type: some TypeSyntaxProtocol,
+        conformingTo _: [TypeSyntax],
+        in _: some MacroExpansionContext
+    ) throws -> [ExtensionDeclSyntax] {
+        guard isSupportedDeclSyntax(declaration), !hasStorageConformance(declaration) else {
+            return []
+        }
+
+        return try [
+            ExtensionDeclSyntax("extension \(type.trimmed): Storage {}"),
+        ]
+    }
+
     /// `Dish` -> `dish`, `FAQItem` -> `faqItem`. Only the leading run of
     /// uppercase letters is lowered, so acronym-led names stay readable.
     private static func lowerCamelCase(_ typeName: String) -> String {
@@ -203,5 +225,22 @@ public struct StorageMacro: MemberMacro {
 
     private static func isSupportedDeclSyntax(_ decl: DeclGroupSyntax) -> Bool {
         decl.is(StructDeclSyntax.self)
+    }
+
+    /// Guards the auto-generated `extension X: Storage {}` against a
+    /// "redundant conformance" error when the struct already spells out
+    /// `Storage` (or a typealias/subprotocol of it) in its own inheritance
+    /// clause. Purely syntactic — it matches the token "Storage" rather than
+    /// resolving a real type, so a custom subprotocol of `Storage` named
+    /// something else wouldn't be caught here; that's an accepted gap, not a
+    /// goal, since the common case is spelling `Storage` directly.
+    private static func hasStorageConformance(_ declaration: some DeclGroupSyntax) -> Bool {
+        guard let structDecl = declaration.as(StructDeclSyntax.self),
+              let inheritanceClause = structDecl.inheritanceClause
+        else { return false }
+
+        return inheritanceClause.inheritedTypes.contains { inherited in
+            inherited.type.as(IdentifierTypeSyntax.self)?.name.text == "Storage"
+        }
     }
 }

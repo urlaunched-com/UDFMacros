@@ -10,11 +10,110 @@ final class StorageMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @Storage(Movie.self)
+                struct AllMovies: Storage {
+                }
+                """,
+                expandedSource: """
+                struct AllMovies: Storage {
+
+                    var byId: [Movie.ID: Movie] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Movie>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Movie>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Movie>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Movie>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func movieBy(id: Movie.ID) -> Movie {
+                        byId[id] ?? .empty
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// UDF 2.0 formalizes `Storage` as a real protocol. When the attached
+    /// struct doesn't already spell out ": Storage" (or anything else) in
+    /// its own inheritance clause, @Storage auto-conforms it via a generated
+    /// `extension AllX: Storage {}` — no hand-written conformance needed.
+    func testStorageAutoConformsWhenMissing() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Movie.self)
                 struct AllMovies: Reducible {
                 }
                 """,
                 expandedSource: """
                 struct AllMovies: Reducible {
+
+                    var byId: [Movie.ID: Movie] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Movie>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Movie>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Movie>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Movie>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func movieBy(id: Movie.ID) -> Movie {
+                        byId[id] ?? .empty
+                    }
+                }
+
+                extension AllMovies: Storage {
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// When the struct already declares `: Storage` itself, the macro must
+    /// NOT also generate `extension AllX: Storage {}` — Swift treats a
+    /// second declaration of the same conformance as a hard "redundant
+    /// conformance" error, not a warning.
+    func testStorageSkipsConformanceWhenAlreadyDeclared() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Movie.self)
+                struct AllMovies: Storage {
+                }
+                """,
+                expandedSource: """
+                struct AllMovies: Storage {
 
                     var byId: [Movie.ID: Movie] = [:]
 
@@ -56,11 +155,11 @@ final class StorageMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @Storage(FAQItem.self)
-                struct AllFAQItems: Reducible {
+                struct AllFAQItems: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllFAQItems: Reducible {
+                struct AllFAQItems: Storage {
 
                     var byId: [FAQItem.ID: FAQItem] = [:]
 
@@ -103,7 +202,7 @@ final class StorageMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @Storage(Movie.self)
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
                     mutating func reduce(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidToggleFavorite<Movie>:
@@ -115,7 +214,7 @@ final class StorageMacroTests: XCTestCase {
                 }
                 """,
                 expandedSource: """
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
                     mutating func reduce(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidToggleFavorite<Movie>:
@@ -153,14 +252,14 @@ final class StorageMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @Storage(Movie.self)
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
                     func movieBy(id: Movie.ID) -> Movie {
                         byId[id] ?? .empty
                     }
                 }
                 """,
                 expandedSource: """
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
                     func movieBy(id: Movie.ID) -> Movie {
                         byId[id] ?? .empty
                     }
@@ -204,14 +303,14 @@ final class StorageMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @Storage(Restaurant.self)
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
                     func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
                         byReviewId[id]
                     }
                 }
                 """,
                 expandedSource: """
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
                     func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
                         byReviewId[id]
                     }
@@ -256,7 +355,7 @@ final class StorageMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @Storage(Dish.self)
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
                     mutating func reduceCustom(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidDislikeDish:
@@ -268,7 +367,7 @@ final class StorageMacroTests: XCTestCase {
                 }
                 """,
                 expandedSource: """
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
                     mutating func reduceCustom(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidDislikeDish:
@@ -318,11 +417,11 @@ final class StorageMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @Storage(Dish.self)
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
 
                     var byId: [Dish.ID: Dish] = [:]
 
@@ -362,11 +461,11 @@ final class StorageMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @Storage(Movie.self)
-                class AllMovies: Reducible {
+                class AllMovies: Storage {
                 }
                 """,
                 expandedSource: """
-                class AllMovies: Reducible {
+                class AllMovies: Storage {
                 }
                 """,
                 diagnostics: [
@@ -384,11 +483,11 @@ final class StorageMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @Storage("Movie")
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
                 }
                 """,
                 diagnostics: [
@@ -411,7 +510,7 @@ final class StorageMacroTests: XCTestCase {
                 @StorageRelationships(
                     .hasOne(Review.self)
                 )
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
                     mutating func reduceCustom(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidDeleteRestaurantFromCollection:
@@ -423,7 +522,7 @@ final class StorageMacroTests: XCTestCase {
                 }
                 """,
                 expandedSource: """
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
                     mutating func reduceCustom(_ action: some Action) {
                         switch action {
                         case let action as Actions.DidDeleteRestaurantFromCollection:

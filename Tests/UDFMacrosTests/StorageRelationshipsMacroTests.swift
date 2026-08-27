@@ -17,11 +17,11 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                 @StorageRelationships(
                     .hasOne(Review.self)
                 )
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
 
                     var byId: [Restaurant.ID: Restaurant] = [:]
 
@@ -88,11 +88,11 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                     .hasOne(FortuneWheelResult.self, name: "byFortuneResultId", label: "fortuneResult"),
                     .hasOne(Dish.self, label: "dishID")
                 )
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
 
                     var byId: [Restaurant.ID: Restaurant] = [:]
 
@@ -171,11 +171,11 @@ final class StorageRelationshipsMacroTests: XCTestCase {
             assertMacroExpansion(
                 """
                 @StorageRelationships(.hasOne(Review.self))
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
                 }
                 """,
                 diagnostics: [
@@ -204,11 +204,11 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                     .hasOne(Person.self),
                     .hasMany(Personnel.self, name: "byPersonId")
                 )
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
 
                     var byId: [Movie.ID: Movie] = [:]
 
@@ -263,11 +263,11 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                 @StorageRelationships(
                     .hasMany(Restaurant.self)
                 )
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
 
                     var byId: [Dish.ID: Dish] = [:]
 
@@ -304,12 +304,12 @@ final class StorageRelationshipsMacroTests: XCTestCase {
 
                         case let action as Actions.DidLoadNestedItems<Restaurant.ID, Dish>:
                             byId.insert(items: action.items)
-                            byRestaurantId.append(action.items.ids, by: action.parentId)
+                            byRestaurantId.append(action.items, by: action.parentId)
 
                         case let action as Actions.DidLoadNestedByParents<Restaurant.ID, Dish>:
                             for (parentId, children) in action.dictionary {
                                 byId.insert(items: children)
-                                byRestaurantId.append(children.ids, by: parentId)
+                                byRestaurantId.append(children, by: parentId)
                             }
 
                         case let action as Actions.DeleteNestedItem<Restaurant.ID, Dish>:
@@ -345,11 +345,11 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                     .hasOne(Review.self),
                     .hasMany(Category.self)
                 )
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllRestaurants: Reducible {
+                struct AllRestaurants: Storage {
 
                     var byId: [Restaurant.ID: Restaurant] = [:]
 
@@ -392,12 +392,12 @@ final class StorageRelationshipsMacroTests: XCTestCase {
 
                         case let action as Actions.DidLoadNestedItems<Category.ID, Restaurant>:
                             byId.insert(items: action.items)
-                            byCategoryId.append(action.items.ids, by: action.parentId)
+                            byCategoryId.append(action.items, by: action.parentId)
 
                         case let action as Actions.DidLoadNestedByParents<Category.ID, Restaurant>:
                             for (parentId, children) in action.dictionary {
                                 byId.insert(items: children)
-                                byCategoryId.append(children.ids, by: parentId)
+                                byCategoryId.append(children, by: parentId)
                             }
 
                         case let action as Actions.DeleteNestedItem<Category.ID, Restaurant>:
@@ -439,11 +439,11 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                     .hasOne(Producer.self),
                     .hasMany(Producer.self, name: "coProducers")
                 )
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllMovies: Reducible {
+                struct AllMovies: Storage {
 
                     var byId: [Movie.ID: Movie] = [:]
 
@@ -495,12 +495,12 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                 @StorageRelationships(
                     .hasMany(Restaurant.self)
                 )
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
                     var byRestaurantId: [Restaurant.ID: OrderedSet<Dish.ID>] = [:]
                 }
                 """,
                 expandedSource: """
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
                     var byRestaurantId: [Restaurant.ID: OrderedSet<Dish.ID>] = [:]
 
                     var byId: [Dish.ID: Dish] = [:]
@@ -536,12 +536,12 @@ final class StorageRelationshipsMacroTests: XCTestCase {
 
                         case let action as Actions.DidLoadNestedItems<Restaurant.ID, Dish>:
                             byId.insert(items: action.items)
-                            byRestaurantId.append(action.items.ids, by: action.parentId)
+                            byRestaurantId.append(action.items, by: action.parentId)
 
                         case let action as Actions.DidLoadNestedByParents<Restaurant.ID, Dish>:
                             for (parentId, children) in action.dictionary {
                                 byId.insert(items: children)
-                                byRestaurantId.append(children.ids, by: parentId)
+                                byRestaurantId.append(children, by: parentId)
                             }
 
                         case let action as Actions.DeleteNestedItem<Restaurant.ID, Dish>:
@@ -574,14 +574,14 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                 @StorageRelationships(
                     .hasMany(Restaurant.self)
                 )
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
                     func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
                         Array(byRestaurantId[id] ?? [])
                     }
                 }
                 """,
                 expandedSource: """
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
                     func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
                         Array(byRestaurantId[id] ?? [])
                     }
@@ -621,12 +621,12 @@ final class StorageRelationshipsMacroTests: XCTestCase {
 
                         case let action as Actions.DidLoadNestedItems<Restaurant.ID, Dish>:
                             byId.insert(items: action.items)
-                            byRestaurantId.append(action.items.ids, by: action.parentId)
+                            byRestaurantId.append(action.items, by: action.parentId)
 
                         case let action as Actions.DidLoadNestedByParents<Restaurant.ID, Dish>:
                             for (parentId, children) in action.dictionary {
                                 byId.insert(items: children)
-                                byRestaurantId.append(children.ids, by: parentId)
+                                byRestaurantId.append(children, by: parentId)
                             }
 
                         case let action as Actions.DeleteNestedItem<Restaurant.ID, Dish>:
@@ -658,11 +658,11 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                 @StorageRelationships(
                     .hasMany(Restaurant.self)
                 )
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
                 }
                 """,
                 expandedSource: """
-                struct AllDishes: Reducible {
+                struct AllDishes: Storage {
 
                     var byId: [Dish.ID: Dish] = [:]
 
@@ -699,12 +699,12 @@ final class StorageRelationshipsMacroTests: XCTestCase {
 
                         case let action as Actions.DidLoadNestedItems<Restaurant.ID, Dish>:
                             byId.insert(items: action.items)
-                            byRestaurantId.append(action.items.ids, by: action.parentId)
+                            byRestaurantId.append(action.items, by: action.parentId)
 
                         case let action as Actions.DidLoadNestedByParents<Restaurant.ID, Dish>:
                             for (parentId, children) in action.dictionary {
                                 byId.insert(items: children)
-                                byRestaurantId.append(children.ids, by: parentId)
+                                byRestaurantId.append(children, by: parentId)
                             }
 
                         case let action as Actions.DeleteNestedItem<Restaurant.ID, Dish>:
