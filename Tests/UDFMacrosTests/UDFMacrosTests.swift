@@ -13,6 +13,7 @@ import XCTest
         "AutoEquatable": AutoEquatableMacro.self,
         "AutoHashable": AutoHashableMacro.self,
         "Storage": StorageMacro.self,
+        "StorageRelationships": StorageRelationshipsMacro.self,
     ]
 #endif
 
@@ -1903,7 +1904,460 @@ final class UDFMacrosTests: XCTestCase {
                 }
                 """,
                 diagnostics: [
-                    DiagnosticSpec(message: "@Storage requires a single argument in the form 'TypeName.self'", line: 1, column: 1),
+                    DiagnosticSpec(message: "@Storage requires 'TypeName.self' as the first argument, optionally followed by 'hasEmpty: Bool'", line: 1, column: 1),
+                ],
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// `hasEmpty: false` generates an optional-returning accessor instead of
+    /// the `.empty`-fallback default — for `Item` types with no static
+    /// `empty` member.
+    func testStorageHasEmptyFalseGeneratesOptionalAccessor() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Restaurant.self, hasEmpty: false)
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+
+                    var byId: [Restaurant.ID: Restaurant] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Restaurant>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Restaurant>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Restaurant>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Restaurant>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func restaurantBy(id: Restaurant.ID) -> Restaurant? {
+                        byId[id]
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// Malformed second argument (wrong label or non-bool-literal value)
+    /// is a diagnostic, same as a malformed first argument.
+    func testStorageInvalidHasEmptyArgument() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Restaurant.self, isEmpty: false)
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(message: "@Storage requires 'TypeName.self' as the first argument, optionally followed by 'hasEmpty: Bool'", line: 1, column: 1),
+                ],
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    // MARK: - StorageRelationships Tests
+
+    /// Single hasOne relationship, default name/label (bulk-load rationale is
+    /// documented on the `StorageRelationships` macro itself).
+    func testStorageRelationshipsSingleHasOneDefaultNaming() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Restaurant.self)
+                @StorageRelationships(
+                    .hasOne(Review.self)
+                )
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+
+                    var byId: [Restaurant.ID: Restaurant] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Restaurant>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Restaurant>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Restaurant>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Restaurant>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            _reduceRelationships(action)
+                        }
+                    }
+
+                    func restaurantBy(id: Restaurant.ID) -> Restaurant {
+                        byId[id] ?? .empty
+                    }
+
+                    var byReviewId: [Review.ID: Restaurant.ID] = [:]
+
+                    mutating func _reduceRelationships(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
+                            byId.insert(item: action.item)
+                            byReviewId[action.parentId] = action.item.id
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                        byReviewId[id]
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// Three relationships in one call. Note: to match the *exact* existing
+    /// AllRestaurants naming (`byFortuneResultId`, not the default
+    /// `byFortuneWheelResultId`), `name:` is passed alongside `label:` — they're
+    /// independent overrides, and `label:` alone only changes the accessor's
+    /// argument label, not the storage property name.
+    func testStorageRelationshipsMultipleWithLabelOverrides() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Restaurant.self)
+                @StorageRelationships(
+                    .hasOne(Review.self),
+                    .hasOne(FortuneWheelResult.self, name: "byFortuneResultId", label: "fortuneResult"),
+                    .hasOne(Dish.self, label: "dishID")
+                )
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+
+                    var byId: [Restaurant.ID: Restaurant] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Restaurant>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Restaurant>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Restaurant>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Restaurant>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            _reduceRelationships(action)
+                        }
+                    }
+
+                    func restaurantBy(id: Restaurant.ID) -> Restaurant {
+                        byId[id] ?? .empty
+                    }
+
+                    var byReviewId: [Review.ID: Restaurant.ID] = [:]
+
+                    var byFortuneResultId: [FortuneWheelResult.ID: Restaurant.ID] = [:]
+
+                    var byDishId: [Dish.ID: Restaurant.ID] = [:]
+
+                    mutating func _reduceRelationships(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
+                            byId.insert(item: action.item)
+                            byReviewId[action.parentId] = action.item.id
+
+                        case let action as Actions.DidLoadNestedItem<FortuneWheelResult.ID, Restaurant>:
+                            byId.insert(item: action.item)
+                            byFortuneResultId[action.parentId] = action.item.id
+
+                        case let action as Actions.DidLoadNestedItem<Dish.ID, Restaurant>:
+                            byId.insert(item: action.item)
+                            byDishId[action.parentId] = action.item.id
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                        byReviewId[id]
+                    }
+
+                    func restaurantBy(fortuneResult id: FortuneWheelResult.ID) -> Restaurant.ID? {
+                        byFortuneResultId[id]
+                    }
+
+                    func restaurantBy(dishID id: Dish.ID) -> Restaurant.ID? {
+                        byDishId[id]
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// @StorageRelationships without @Storage on the same declaration is a
+    /// compile-time error, not a silently-inert _reduceRelationships(_:).
+    func testStorageRelationshipsRequiresStorage() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @StorageRelationships(.hasOne(Review.self))
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "@StorageRelationships requires @Storage(_:) on the same declaration — without it, the generated _reduceRelationships(_:) is never called.",
+                        line: 1,
+                        column: 1
+                    ),
+                ],
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// Two relationships to the same parent type without an explicit `name:`
+    /// collide on the default `by<Parent>Id` name — must be a diagnostic, not a
+    /// silent duplicate declaration.
+    func testStorageRelationshipsDuplicateNameDiagnostic() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Movie.self)
+                @StorageRelationships(
+                    .hasOne(Person.self),
+                    .hasOne(Person.self)
+                )
+                struct AllMovies: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllMovies: Reducible {
+
+                    var byId: [Movie.ID: Movie] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Movie>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Movie>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Movie>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Movie>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            _reduceRelationships(action)
+                        }
+                    }
+
+                    func movieBy(id: Movie.ID) -> Movie {
+                        byId[id] ?? .empty
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(message: "Relationship name 'byPersonId' is used more than once. Pass an explicit `name:` to disambiguate two relationships to the same parent type.", line: 4, column: 5),
+                ],
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// Both _reduceRelationships(_:) and a user-written reduceCustom(_:) fire from
+    /// default: — not exclusive-or.
+    func testStorageWiresBothRelationshipsAndReduceCustom() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Restaurant.self)
+                @StorageRelationships(
+                    .hasOne(Review.self)
+                )
+                struct AllRestaurants: Reducible {
+                    mutating func reduceCustom(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidDeleteRestaurantFromCollection:
+                            byId[action.restaurantID]?.isCollectedByCurrentUser = action.isContainedInOtherCollections
+                        default:
+                            break
+                        }
+                    }
+                }
+                """,
+                expandedSource: """
+                struct AllRestaurants: Reducible {
+                    mutating func reduceCustom(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidDeleteRestaurantFromCollection:
+                            byId[action.restaurantID]?.isCollectedByCurrentUser = action.isContainedInOtherCollections
+                        default:
+                            break
+                        }
+                    }
+
+                    var byId: [Restaurant.ID: Restaurant] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Restaurant>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Restaurant>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Restaurant>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Restaurant>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            _reduceRelationships(action)
+                            reduceCustom(action)
+                        }
+                    }
+
+                    func restaurantBy(id: Restaurant.ID) -> Restaurant {
+                        byId[id] ?? .empty
+                    }
+
+                    var byReviewId: [Review.ID: Restaurant.ID] = [:]
+
+                    mutating func _reduceRelationships(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadNestedItem<Review.ID, Restaurant>:
+                            byId.insert(item: action.item)
+                            byReviewId[action.parentId] = action.item.id
+
+                        default:
+                            break
+                        }
+                    }
+
+                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                        byReviewId[id]
+                    }
+                }
+                """,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    /// .hasMany is deliberately unimplemented — a clear diagnostic, not guessed
+    /// code. @Storage still generates its own members regardless (its
+    /// hasRelationships check is name-only) — harmless since the diagnostic
+    /// below already fails the build.
+    func testStorageRelationshipsHasManyNotYetSupported() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Storage(Dish.self)
+                @StorageRelationships(
+                    .hasMany(Restaurant.self)
+                )
+                struct AllDishes: Reducible {
+                }
+                """,
+                expandedSource: """
+                struct AllDishes: Reducible {
+
+                    var byId: [Dish.ID: Dish] = [:]
+
+                    mutating func reduce(_ action: some Action) {
+                        switch action {
+                        case let action as Actions.DidLoadItems<Dish>:
+                            byId.insert(items: action.items)
+
+                        case let action as Actions.DidLoadItem<Dish>:
+                            byId.insert(item: action.item)
+
+                        case let action as Actions.DidUpdateItem<Dish>:
+                            byId[action.item.id] = action.item
+
+                        case let action as Actions.DeleteItem<Dish>:
+                            byId.removeValue(forKey: action.item.id)
+
+                        default:
+                            _reduceRelationships(action)
+                        }
+                    }
+
+                    func dishBy(id: Dish.ID) -> Dish {
+                        byId[id] ?? .empty
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "@StorageRelationships does not generate .hasMany relationships yet — write this one by hand for now (deliberately deferred, not guessed at).",
+                        line: 3,
+                        column: 5
+                    ),
                 ],
                 macros: testMacros
             )
