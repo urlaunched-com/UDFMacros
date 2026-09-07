@@ -24,20 +24,23 @@ public struct AutoEquatableMacro: ExtensionMacro {
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
         providingExtensionsOf type: some TypeSyntaxProtocol,
-        conformingTo protocols: [TypeSyntax],
-        in context: some MacroExpansionContext
+        conformingTo _: [TypeSyntax],
+        in _: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
+        // Additional closure type-alias names supplied at the call site (e.g. `CommandWith`
+        // in another module) that SwiftSyntax cannot resolve on its own.
+        let ignoringTypeNames = ignoringTypeNames(from: node)
         // Ensure we're attached to an enum; otherwise, nothing to generate
         if let structDecl = declaration.as(StructDeclSyntax.self) {
             // Handle struct: compare stored properties
             // Collect all variable declarations in the struct
             let vars = structDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try equatableFor(vars: vars, type: type)
+            return try equatableFor(vars: vars, type: type, ignoringTypeNames: ignoringTypeNames)
         } else if let classDecl = declaration.as(ClassDeclSyntax.self) {
             // Handle class: compare stored properties
             // Collect all variable declarations in the class
             let vars = classDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try equatableFor(vars: vars, type: type)
+            return try equatableFor(vars: vars, type: type, ignoringTypeNames: ignoringTypeNames)
         } else if let enumDecl = declaration.as(EnumDeclSyntax.self) {
             // Collect all member declarations of the enum
             let members = enumDecl.memberBlock.members
@@ -45,10 +48,10 @@ public struct AutoEquatableMacro: ExtensionMacro {
             let caseDecl = members.compactMap { $0.decl.as(EnumCaseDeclSyntax.self) }
             // Flatten the cases to get all individual enum elements
             let elements = caseDecl.flatMap { $0.elements }
-            
+
             // Build each switch arm for the `==` implementation
-            let equatableArms = equatableArmsFor(enumElements: elements)
-            
+            let equatableArms = equatableArmsFor(enumElements: elements, ignoringTypeNames: ignoringTypeNames)
+
             // Construct the Equatable extension for the enum
             let function = try FunctionDeclSyntax("static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
                 StmtSyntax("switch (lhs, rhs) {")
@@ -57,12 +60,12 @@ public struct AutoEquatableMacro: ExtensionMacro {
                 StmtSyntax("}")
             }
             let ext: DeclSyntax =
-            """
-            extension \(type.trimmed): Equatable {
-                \(raw: function.description)
-            }
-            """
-            
+                """
+                extension \(type.trimmed): Equatable {
+                    \(raw: function.description)
+                }
+                """
+
             // Return the generated extension declaration to the compiler plugin
             return [ext.cast(ExtensionDeclSyntax.self)]
         } else {
@@ -76,37 +79,40 @@ public struct AutoHashableMacro: ExtensionMacro {
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
         providingExtensionsOf type: some TypeSyntaxProtocol,
-        conformingTo protocols: [TypeSyntax],
-        in context: some MacroExpansionContext
+        conformingTo _: [TypeSyntax],
+        in _: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
+        // Additional closure type-alias names supplied at the call site (e.g. `CommandWith`
+        // in another module) that SwiftSyntax cannot resolve on its own.
+        let ignoringTypeNames = ignoringTypeNames(from: node)
         if let structDecl = declaration.as(StructDeclSyntax.self) {
             let vars = structDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try hashableFor(vars: vars, type: type)
+            return try hashableFor(vars: vars, type: type, ignoringTypeNames: ignoringTypeNames)
         } else if let classDecl = declaration.as(ClassDeclSyntax.self) {
             let vars = classDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try hashableFor(vars: vars, type: type)
+            return try hashableFor(vars: vars, type: type, ignoringTypeNames: ignoringTypeNames)
         } else if let enumDecl = declaration.as(EnumDeclSyntax.self) {
             let members = enumDecl.memberBlock.members
             let caseDecl = members.compactMap { $0.decl.as(EnumCaseDeclSyntax.self) }
             let elements = caseDecl.flatMap { $0.elements }
-            
-            let equatableArms = equatableArmsFor(enumElements: elements)
+
+            let equatableArms = equatableArmsFor(enumElements: elements, ignoringTypeNames: ignoringTypeNames)
             let equalizeFunction = try FunctionDeclSyntax("static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
                 StmtSyntax("switch (lhs, rhs) {")
                 equatableArms
                 StmtSyntax("default: false")
                 StmtSyntax("}")
             }
-            
-            let hashFunction = try hashFunctionFor(enumElements: elements)
+
+            let hashFunction = try hashFunctionFor(enumElements: elements, ignoringTypeNames: ignoringTypeNames)
             let ext: DeclSyntax =
-            """
-            extension \(type.trimmed): Hashable {
-                \(raw: equalizeFunction.description)
-                \(raw: hashFunction.description)
-            }
-            """
-            
+                """
+                extension \(type.trimmed): Hashable {
+                    \(raw: equalizeFunction.description)
+                    \(raw: hashFunction.description)
+                }
+                """
+
             return [ext.cast(ExtensionDeclSyntax.self)]
         } else {
             return []
@@ -115,11 +121,11 @@ public struct AutoHashableMacro: ExtensionMacro {
 }
 
 /// TypeAnalyzer provides simplified type analysis using compiler-based verification.
-/// 
+///
 /// This approach eliminates all hardcoded type checking and instead generates
 /// equality comparisons for all types, letting the Swift compiler determine
 /// if types are actually Equatable at compile time.
-private struct TypeAnalyzer {
+private enum TypeAnalyzer {
     /// Determines if a type should be included in equality comparison.
     ///
     /// This approach uses SwiftSyntax's type system to detect function types
@@ -127,17 +133,17 @@ private struct TypeAnalyzer {
     ///
     /// - Parameter typeSyntax: The type syntax node to analyze
     /// - Returns: `true` if the type should be included in equality comparison
-    static func shouldIncludeInEquality(_ typeSyntax: TypeSyntax) -> Bool {
+    static func shouldIncludeInEquality(_ typeSyntax: TypeSyntax, ignoringTypeNames: Set<String> = []) -> Bool {
         // Use SwiftSyntax-based closure detection
-        if isClosureType(typeSyntax) {
+        if isClosureType(typeSyntax, ignoringTypeNames: ignoringTypeNames) {
             return false
         }
-        
+
         // Fall back to string-based analysis for other types
         let typeDescription = typeSyntax.description.trimmingCharacters(in: .whitespacesAndNewlines)
         return shouldIncludeInEquality(typeDescription)
     }
-    
+
     /// Determines if a type should be included in hashing.
     ///
     /// This approach uses SwiftSyntax's type system to detect function types
@@ -145,17 +151,17 @@ private struct TypeAnalyzer {
     ///
     /// - Parameter typeSyntax: The type syntax node to analyze
     /// - Returns: `true` if the type should be included in hashing
-    static func shouldIncludeInHashing(_ typeSyntax: TypeSyntax) -> Bool {
+    static func shouldIncludeInHashing(_ typeSyntax: TypeSyntax, ignoringTypeNames: Set<String> = []) -> Bool {
         // Use SwiftSyntax-based closure detection
-        if isClosureType(typeSyntax) {
+        if isClosureType(typeSyntax, ignoringTypeNames: ignoringTypeNames) {
             return false
         }
-        
+
         // Fall back to string-based analysis for other types
         let typeDescription = typeSyntax.description.trimmingCharacters(in: .whitespacesAndNewlines)
         return shouldIncludeInHashing(typeDescription)
     }
-    
+
     /// Determines if a type name should be included in equality comparison.
     ///
     /// - Parameter typeName: The type name string to analyze
@@ -170,7 +176,7 @@ private struct TypeAnalyzer {
             return true
         }
     }
-    
+
     /// Determines if a type name should be included in hashing.
     ///
     /// - Parameter typeName: The type name string to analyze
@@ -185,60 +191,67 @@ private struct TypeAnalyzer {
             return true
         }
     }
-    
+
     /// Determines if a type represents a closure/function type using SwiftSyntax.
     ///
     /// This approach uses SwiftSyntax's type system to detect function types
-    /// and handles attributed types (like @escaping, @autoclosure, @Sendable) 
+    /// and handles attributed types (like @escaping, @autoclosure, @Sendable)
     /// and optional types that wrap function types automatically.
     ///
     /// - Parameter typeSyntax: The type syntax node to analyze
     /// - Returns: `true` if the type is a closure/function type
-    private static func isClosureType(_ typeSyntax: TypeSyntax) -> Bool {
-        return isClosureTypeRecursive(typeSyntax)
+    private static func isClosureType(_ typeSyntax: TypeSyntax, ignoringTypeNames: Set<String>) -> Bool {
+        return isClosureTypeRecursive(typeSyntax, ignoringTypeNames: ignoringTypeNames)
     }
-    
+
     /// Recursively checks if a type is a closure type, handling all wrapper types.
-    private static func isClosureTypeRecursive(_ typeSyntax: TypeSyntax) -> Bool {
+    private static func isClosureTypeRecursive(_ typeSyntax: TypeSyntax, ignoringTypeNames: Set<String>) -> Bool {
         // Direct function type check
         if typeSyntax.is(FunctionTypeSyntax.self) {
             return true
         }
-        
+
         // Handle attributed types (e.g., @escaping, @autoclosure, @Sendable)
         if let attributedType = typeSyntax.as(AttributedTypeSyntax.self) {
-            return isClosureTypeRecursive(attributedType.baseType)
+            return isClosureTypeRecursive(attributedType.baseType, ignoringTypeNames: ignoringTypeNames)
         }
-        
+
         // Handle optional types that may wrap function types (e.g., ((Double) -> Void)?)
         if let optionalType = typeSyntax.as(OptionalTypeSyntax.self) {
-            return isClosureTypeRecursive(optionalType.wrappedType)
+            return isClosureTypeRecursive(optionalType.wrappedType, ignoringTypeNames: ignoringTypeNames)
         }
-        
+
         // Handle tuple types that may represent function types in parentheses
         // e.g., ((Double) -> Void) is represented as a tuple containing a function
         if let tupleType = typeSyntax.as(TupleTypeSyntax.self) {
             // Check if it's a single-element tuple containing a function type
             if tupleType.elements.count == 1,
-               let firstElement = tupleType.elements.first {
-                return isClosureTypeRecursive(firstElement.type)
+               let firstElement = tupleType.elements.first
+            {
+                return isClosureTypeRecursive(firstElement.type, ignoringTypeNames: ignoringTypeNames)
             }
         }
-        
+
         // Handle implicitly unwrapped optional types
         if let implicitlyUnwrappedOptionalType = typeSyntax.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
-            return isClosureTypeRecursive(implicitlyUnwrappedOptionalType.wrappedType)
+            return isClosureTypeRecursive(implicitlyUnwrappedOptionalType.wrappedType, ignoringTypeNames: ignoringTypeNames)
         }
-        
-        // Handle known Command type aliases (since SwiftSyntax cannot resolve type aliases)
-        // This includes both simple Command types and generic CommandWith<T> types
+
+        // Handle type aliases (since SwiftSyntax cannot resolve typealiases during macro
+        // expansion - it only ever sees the alias name, e.g. `CommandWith<Item>`, never the
+        // underlying `(Item) -> Void` it points to). We match against:
+        // 1. The built-in `Command` family, kept for backward compatibility.
+        // 2. Any additional names the caller passed via `ignoringTypeNames:` on the attribute,
+        //    which covers custom or externally-defined closure typealiases that this library
+        //    has no way of knowing about ahead of time.
         if let identifierType = typeSyntax.as(IdentifierTypeSyntax.self) {
-            return isCommandTypeAlias(identifierType.name.text)
+            let name = identifierType.name.text
+            return isCommandTypeAlias(name) || ignoringTypeNames.contains(name)
         }
-        
+
         return false
     }
-    
+
     /// Checks if a type name matches known Command closure type aliases.
     private static func isCommandTypeAlias(_ typeName: String) -> Bool {
         switch typeName {
@@ -250,8 +263,35 @@ private struct TypeAnalyzer {
     }
 }
 
+/// Parses the optional `ignoringTypeNames: [String]` argument from an `@AutoEquatable` or
+/// `@AutoHashable` attribute.
+private func ignoringTypeNames(from node: AttributeSyntax) -> Set<String> {
+    guard let arguments = node.arguments?.as(LabeledExprListSyntax.self) else {
+        return []
+    }
+
+    for argument in arguments where argument.label?.text == "ignoringTypeNames" {
+        guard let arrayExpr = argument.expression.as(ArrayExprSyntax.self) else {
+            continue
+        }
+
+        let names = arrayExpr.elements.compactMap { element -> String? in
+            guard let stringLiteral = element.expression.as(StringLiteralExprSyntax.self),
+                  stringLiteral.segments.count == 1,
+                  let segment = stringLiteral.segments.first?.as(StringSegmentSyntax.self)
+            else {
+                return nil
+            }
+            return segment.content.text
+        }
+        return Set(names)
+    }
+
+    return []
+}
+
 private extension ExtensionMacro {
-    static func equatableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol) throws -> [ExtensionDeclSyntax] {
+    static func equatableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol, ignoringTypeNames: Set<String> = []) throws -> [ExtensionDeclSyntax] {
         let properties: [(name: String, typeSyntax: TypeSyntax)] = vars.flatMap { varDecl in
             varDecl.bindings.compactMap { binding in
                 guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
@@ -262,7 +302,7 @@ private extension ExtensionMacro {
         }
         // Build comparisons for all properties using TypeSyntax-based analysis
         let comparisons = properties.compactMap { prop in
-            TypeAnalyzer.shouldIncludeInEquality(prop.typeSyntax) ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
+            TypeAnalyzer.shouldIncludeInEquality(prop.typeSyntax, ignoringTypeNames: ignoringTypeNames) ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
         }
         let body = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
         // Build the static == function using SwiftSyntaxBuilder
@@ -271,15 +311,15 @@ private extension ExtensionMacro {
         }
         // Create the extension embedding the function
         let extDecl: DeclSyntax =
-        """
-        extension \(type.trimmed): Equatable {
-            \(raw: function.description)
-        }
-        """
+            """
+            extension \(type.trimmed): Equatable {
+                \(raw: function.description)
+            }
+            """
         return [extDecl.cast(ExtensionDeclSyntax.self)]
     }
-    
-    static func hashableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol) throws -> [ExtensionDeclSyntax] {
+
+    static func hashableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol, ignoringTypeNames: Set<String> = []) throws -> [ExtensionDeclSyntax] {
         let properties: [(name: String, typeSyntax: TypeSyntax)] = vars.flatMap { varDecl in
             varDecl.bindings.compactMap { binding in
                 guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
@@ -288,57 +328,57 @@ private extension ExtensionMacro {
                 return (name: name, typeSyntax: typeAnnotation.type)
             }
         }
-        
+
         // Build comparisons for all properties using TypeSyntax-based analysis
         let comparisons = properties.compactMap { prop in
-            TypeAnalyzer.shouldIncludeInEquality(prop.typeSyntax) ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
+            TypeAnalyzer.shouldIncludeInEquality(prop.typeSyntax, ignoringTypeNames: ignoringTypeNames) ? "lhs.\(prop.name) == rhs.\(prop.name)" : nil
         }
         let equalsBody = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
-        
+
         // Build hash combinations for properties that should be included
         let hashes = properties.compactMap { prop in
-            TypeAnalyzer.shouldIncludeInHashing(prop.typeSyntax) ? StmtSyntax("hasher.combine(\(raw: prop.name))") : nil
+            TypeAnalyzer.shouldIncludeInHashing(prop.typeSyntax, ignoringTypeNames: ignoringTypeNames) ? StmtSyntax("hasher.combine(\(raw: prop.name))") : nil
         }
-        
+
         // Build the static == function using SwiftSyntaxBuilder
         let equalizeFunction = try FunctionDeclSyntax("static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
             StmtSyntax("\(raw: equalsBody)")
         }
-        
+
         // Build the hash function using SwiftSyntaxBuilder
         let hashFunction = try FunctionDeclSyntax("func hash(into hasher: inout Hasher)") {
             hashes
         }
-        
+
         // Create the extension with both equality and hash functions (Hashable requires Equatable)
         let extDecl: DeclSyntax =
-        """
-        extension \(type.trimmed): Hashable {
-            \(raw: equalizeFunction.description)
-            \(raw: hashFunction.description)
-        }
-        """
+            """
+            extension \(type.trimmed): Hashable {
+                \(raw: equalizeFunction.description)
+                \(raw: hashFunction.description)
+            }
+            """
         return [extDecl.cast(ExtensionDeclSyntax.self)]
     }
-    
-    static func hashFunctionFor(enumElements: [EnumCaseElementListSyntax.Element]) throws -> FunctionDeclSyntax {
+
+    static func hashFunctionFor(enumElements: [EnumCaseElementListSyntax.Element], ignoringTypeNames: Set<String> = []) throws -> FunctionDeclSyntax {
         let hashArms = enumElements.map { element in
             let caseName = element.name.text
             if let assoc = element.parameterClause, !assoc.parameters.isEmpty {
                 // Generate bindings for associated values that should be included in hashing
                 let enumeratedParameters = assoc.parameters.enumerated()
                 let bindings = enumeratedParameters.map { index, param in
-                    return TypeAnalyzer.shouldIncludeInHashing(param.type) ? "value\(index)" : "_"
+                    TypeAnalyzer.shouldIncludeInHashing(param.type, ignoringTypeNames: ignoringTypeNames) ? "value\(index)" : "_"
                 }
-                
+
                 // Build hash combinations for included associated values using TypeSyntax-based analysis
                 let hashCombinations = enumeratedParameters.compactMap { index, param in
-                    TypeAnalyzer.shouldIncludeInHashing(param.type) ? "hasher.combine(\(bindings[index]))" : nil
+                    TypeAnalyzer.shouldIncludeInHashing(param.type, ignoringTypeNames: ignoringTypeNames) ? "hasher.combine(\(bindings[index]))" : nil
                 }
-                
+
                 // Create the pattern for case destructuring
                 let pattern = bindings.joined(separator: ", ")
-                
+
                 if hashCombinations.isEmpty {
                     // If no associated values can be hashed, just hash the case discriminant
                     return StmtSyntax("case .\(raw: caseName): hasher.combine(\"\(raw: caseName)\")")
@@ -352,15 +392,15 @@ private extension ExtensionMacro {
                 return StmtSyntax("case .\(raw: caseName): hasher.combine(\"\(raw: caseName)\")")
             }
         }
-        
+
         return try FunctionDeclSyntax("func hash(into hasher: inout Hasher)") {
             StmtSyntax("switch self {")
             hashArms
             StmtSyntax("}")
         }
     }
-    
-    static func equatableArmsFor(enumElements: [EnumCaseElementListSyntax.Element]) -> [StmtSyntax] {
+
+    static func equatableArmsFor(enumElements: [EnumCaseElementListSyntax.Element], ignoringTypeNames: Set<String> = []) -> [StmtSyntax] {
         // Build each switch arm for the `==` implementation
         enumElements.map { element in
             // Get the name of this enum case
@@ -371,14 +411,14 @@ private extension ExtensionMacro {
                 let enumeratedParameters = assoc.parameters.enumerated()
                 // Generate binding identifiers for all values using TypeSyntax-based analysis
                 let lhsBindings = enumeratedParameters.map { index, param in
-                    return TypeAnalyzer.shouldIncludeInEquality(param.type) ? "lhs\(index)" : "_"
+                    TypeAnalyzer.shouldIncludeInEquality(param.type, ignoringTypeNames: ignoringTypeNames) ? "lhs\(index)" : "_"
                 }
-                
-                // Generate binding identifiers for rhs values similarly  
+
+                // Generate binding identifiers for rhs values similarly
                 let rhsBindings = enumeratedParameters.map { index, param in
-                    return TypeAnalyzer.shouldIncludeInEquality(param.type) ? "rhs\(index)" : "_"
+                    TypeAnalyzer.shouldIncludeInEquality(param.type, ignoringTypeNames: ignoringTypeNames) ? "rhs\(index)" : "_"
                 }
-                
+
                 // Create the tuple pattern for lhs bindings
                 let lhsPattern = lhsBindings.joined(separator: ", ")
                 // Create the tuple pattern for rhs bindings
@@ -386,13 +426,13 @@ private extension ExtensionMacro {
 
                 // Build comparison expressions using TypeSyntax-based analysis
                 let comparisons = enumeratedParameters.compactMap { index, param in
-                    if TypeAnalyzer.shouldIncludeInEquality(param.type) {
+                    if TypeAnalyzer.shouldIncludeInEquality(param.type, ignoringTypeNames: ignoringTypeNames) {
                         return "\(lhsBindings[index]) == \(rhsBindings[index])"
                     }
-                    
+
                     return nil
                 }
-                
+
                 // Determine the overall condition: true if no comparisons, else join with &&
                 let condition = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
                 // Return this switch arm for the case with its comparison logic
