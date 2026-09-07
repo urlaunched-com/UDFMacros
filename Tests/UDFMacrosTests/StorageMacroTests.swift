@@ -392,7 +392,7 @@ final class StorageMacroTests: XCTestCase {
                 }
                 """,
                 diagnostics: [
-                    DiagnosticSpec(message: "@Storage requires a single argument in the form 'TypeName.self'", line: 1, column: 1),
+                    DiagnosticSpec(message: "@Storage requires 'TypeName.self' as the first argument, optionally followed by 'hasEmpty: Bool'", line: 1, column: 1),
                 ],
                 macros: testMacros
             )
