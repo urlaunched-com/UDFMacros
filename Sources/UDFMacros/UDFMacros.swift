@@ -18,11 +18,20 @@ public macro SensitiveData(option: SensitiveDataOption? = nil) = #externalMacro(
 /// and a `<lowerCamelCase(Item)>By(id:)` convenience accessor (e.g. `dishBy(id:)`
 /// for `Dish`) that most `Reducible` "AllX" storages repeat verbatim.
 ///
-/// The accessor falls back to `Item.empty` — the attached `Item` type must
-/// declare a static `empty` member itself (there's no protocol backing this
-/// in the codebase, so it isn't enforced at the `@Storage` declaration; a
-/// missing `.empty` surfaces as a compile error inside the generated
-/// accessor instead).
+/// By default (`hasEmpty: true`, matching the existing codebase convention
+/// where most `Item` models already declare `static var empty`), the
+/// accessor falls back to `Item.empty` when the id isn't found. The attached
+/// `Item` type must declare that static `empty` member itself — there's no
+/// protocol backing this in the codebase, so it isn't enforced at the
+/// `@Storage` declaration; a missing `.empty` surfaces as a compile error
+/// inside the generated accessor instead.
+///
+/// Pass `hasEmpty: false` for an `Item` with no `.empty` — the accessor then
+/// returns `Item?` instead of silently falling back:
+///
+///     @Storage(Restaurant.self, hasEmpty: false)
+///     struct AllRestaurants: Reducible { }
+///     // -> func restaurantBy(id: Restaurant.ID) -> Restaurant?
 ///
 /// If `byId`, `reduce`, and/or the accessor are already declared in the
 /// attached struct, the macro leaves that member alone and only fills in
@@ -37,4 +46,4 @@ public macro SensitiveData(option: SensitiveDataOption? = nil) = #externalMacro(
 /// standard four cases itself, write the full `reduce` by hand — the macro
 /// detects that and won't generate a conflicting one.
 @attached(member, names: named(byId), named(reduce), arbitrary)
-public macro Storage<Item: Identifiable>(_ type: Item.Type) = #externalMacro(module: "UDFMacrosMacros", type: "StorageMacro")
+public macro Storage<Item: Identifiable>(_ type: Item.Type, hasEmpty: Bool = true) = #externalMacro(module: "UDFMacrosMacros", type: "StorageMacro")
