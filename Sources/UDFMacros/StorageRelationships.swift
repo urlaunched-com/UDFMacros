@@ -1,10 +1,40 @@
-/// Compile-time-only descriptor. Never constructed or evaluated at runtime —
-/// `StorageRelationshipsMacro` parses the *syntax* of each `.hasOne`/`.hasMany`
-/// argument directly from the attribute's argument list. This type exists solely
-/// so the `@StorageRelationships(...)` call type-checks before expansion runs.
+/// Describes relationships that should be generated for a storage.
+///
+/// `StorageRelationshipsMacro` parses the syntax of each descriptor at compile time
+/// and uses it to generate relationship properties, reducer handling, and lookup methods.
+///
+/// This type exists only to make `@StorageRelationships(...)` type-check before
+/// macro expansion and is not intended to be constructed or evaluated at runtime.
 public enum RelationshipDescriptor {
-    case hasOne(Any.Type, name: String? = nil, label: String? = nil)
-    case hasMany(Any.Type, name: String? = nil, label: String? = nil)
+    /// Declares a to-one relationship with another storage item type.
+    ///
+    /// - Parameters:
+    ///   - type: The related storage item type.
+    ///   - propertyName: Overrides the name of the generated relationship property.
+    ///     For example, `"byFortuneResultId"` generates a property with that name.
+    ///   - argumentLabel: Overrides the argument label used by the generated
+    ///     relationship lookup method. For example, `"fortuneResult"` generates
+    ///     a lookup such as `restaurantBy(fortuneResult:)`.
+    case hasOne(
+        Any.Type,
+        propertyName: String? = nil,
+        argumentLabel: String? = nil
+    )
+
+    /// Declares a to-many relationship with another storage item type.
+    ///
+    /// - Parameters:
+    ///   - type: The related storage item type.
+    ///   - propertyName: Overrides the name of the generated relationship property.
+    ///     For example, `"byCategoryId"` generates a property with that name.
+    ///   - argumentLabel: Overrides the argument label used by the generated
+    ///     relationship lookup method. For example, `"category"` generates
+    ///     a lookup such as `restaurantsBy(category:)`.
+    case hasMany(
+        Any.Type,
+        propertyName: String? = nil,
+        argumentLabel: String? = nil
+    )
 }
 
 /// Attaches one or more storage relationships to an `@Storage`-annotated `Reducible`.
@@ -17,8 +47,8 @@ public enum RelationshipDescriptor {
 ///     @Storage(Restaurant.self)
 ///     @StorageRelationships(
 ///         .hasOne(Review.self),                                    // -> byReviewId
-///         .hasOne(FortuneWheelResult.self, label: "fortuneResult"), // matches existing style
-///         .hasOne(Dish.self, label: "dishID"),                      // matches existing style
+///         .hasOne(FortuneWheelResult.self, argumentLabel: "fortuneResult"), // matches existing style
+///         .hasOne(Dish.self, argumentLabel: "dishID"),                      // matches existing style
 ///         .hasMany(Category.self)                                  // -> byCategoryId
 ///     )
 ///     struct AllRestaurants: Reducible { }
@@ -49,11 +79,11 @@ public enum RelationshipDescriptor {
 /// for one-to-many relationships (e.g. loading a page of parents and their
 /// children in one response).
 ///
-/// `name:` overrides the storage property; `label:` overrides only the accessor's
-/// argument label. They're independent because the existing codebase already
-/// diverges here — `by<Parent>Id` is a strict convention, but argument labels
-/// (`review`, `fortuneResult`, `dishID`) are hand-picked for readability, not a
-/// mechanical function of the type name.
+/// `propertyName:` overrides the storage property; `argumentLabel:` overrides only
+/// the accessor's argument label. They're independent because the existing codebase
+/// already diverges here — `by<Parent>Id` is a strict convention, but argument
+/// labels (`review`, `fortuneResult`, `dishID`) are hand-picked for readability,
+/// not a mechanical function of the type name.
 ///
 /// The `_reduceRelationships` / `_` prefix marks it as a generated, reserved
 /// member — matching the convention already used elsewhere in this codebase

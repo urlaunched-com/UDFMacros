@@ -17,11 +17,11 @@ private struct ParsedHasOne {
     let argumentLabel: String
 }
 
-// mirrors ParsedHasOne. Kept as a separate type (not a shared enum) because
-// hasOne/hasMany genuinely generate different code shapes downstream (storage
-// value type, reduce-case bodies, accessor return type) — collapsing them into
-// one type with a `kind` flag would just push an `if kind == .hasMany` into
-// every codegen site instead of keeping each shape in its own place.
+/// mirrors ParsedHasOne. Kept as a separate type (not a shared enum) because
+/// hasOne/hasMany genuinely generate different code shapes downstream (storage
+/// value type, reduce-case bodies, accessor return type) — collapsing them into
+/// one type with a `kind` flag would just push an `if kind == .hasMany` into
+/// every codegen site instead of keeping each shape in its own place.
 private struct ParsedHasMany {
     let parentTypeName: String
     let propertyName: String
@@ -101,14 +101,14 @@ public struct StorageRelationshipsMacro: MemberMacro {
                 continue
             }
 
-            let explicitName = stringArgument(call, label: "name")
-            let explicitLabel = stringArgument(call, label: "label")
+            let explicitPropertyName = stringArgument(call, label: "propertyName")
+            let explicitArgumentLabel = stringArgument(call, label: "argumentLabel")
 
             // Same default-naming scheme for both kinds: "by<Parent>Id".
             // No pluralization here — the key is always a single Parent.ID,
             // even for hasMany (the "many" lives in the value's OrderedSet).
-            let propertyName = explicitName ?? "by\(parentTypeName)Id"
-            let argumentLabel = explicitLabel ?? lowerCamelCase(parentTypeName)
+            let propertyName = explicitPropertyName ?? "by\(parentTypeName)Id"
+            let argumentLabel = explicitArgumentLabel ?? lowerCamelCase(parentTypeName)
 
             guard usedPropertyNames.insert(propertyName).inserted else {
                 context.diagnose(Diagnostic(node: argument, message: StorageRelationshipsDiagnostic.duplicateName(propertyName)))
@@ -151,15 +151,13 @@ public struct StorageRelationshipsMacro: MemberMacro {
         // Storage properties — hasOne
         for relationship in hasOneRelationships where !existingPropertyNames.contains(relationship.propertyName) {
             members.append(DeclSyntax(stringLiteral:
-                "var \(relationship.propertyName): [\(relationship.parentTypeName).ID: \(itemTypeName).ID] = [:]"
-            ))
+                "var \(relationship.propertyName): [\(relationship.parentTypeName).ID: \(itemTypeName).ID] = [:]"))
         }
 
         // Storage properties — hasMany
         for relationship in hasManyRelationships where !existingPropertyNames.contains(relationship.propertyName) {
             members.append(DeclSyntax(stringLiteral:
-                "var \(relationship.propertyName): [\(relationship.parentTypeName).ID: OrderedSet<\(itemTypeName).ID>] = [:]"
-            ))
+                "var \(relationship.propertyName): [\(relationship.parentTypeName).ID: OrderedSet<\(itemTypeName).ID>] = [:]"))
         }
 
         // _reduceRelationships(_:) — both kinds combined into one switch.

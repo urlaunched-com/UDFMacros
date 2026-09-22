@@ -25,21 +25,21 @@ public enum StorageRelationshipsDiagnostic: DiagnosticMessage {
             return "@StorageRelationships requires @Storage(_:) on the same declaration — "
                 + "without it, the generated _reduceRelationships(_:) is never called."
         case let .duplicateName(name):
-            return "Relationship name '\(name)' is used more than once. Pass an explicit "
-                + "`name:` to disambiguate two relationships to the same parent type."
+            return "Relationship property name '\(name)' is used more than once. Pass an explicit "
+                + "`propertyName:` to disambiguate two relationships to the same parent type."
         case let .duplicateParentType(typeName):
             return "'\(typeName)' is already used as a relationship parent type on this "
                 + "declaration. Two relationships to the same parent type — regardless of "
                 + "whether they're `.hasOne` or `.hasMany` — would generate a duplicate "
                 + "`Actions.DidLoadNestedItem<\(typeName).ID, _>` case in _reduceRelationships(_:), "
-                + "even if their storage property names differ via `name:`."
+                + "even if their storage property names differ via `propertyName:`."
         case let .alreadyDeclared(name):
             return "'\(name)' is already declared manually. @StorageRelationships will not "
                 + "overwrite it — remove the corresponding relationship from "
                 + "@StorageRelationships if this is intentional."
         case .malformedArgument:
             return "Expected `.hasOne(Type.self)` or `.hasMany(Type.self)`, optionally with "
-                + "`name:` and/or `label:`."
+                + "`propertyName:` and/or `argumentLabel:`."
         }
     }
 

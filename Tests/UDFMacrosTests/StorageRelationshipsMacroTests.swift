@@ -75,18 +75,18 @@ final class StorageRelationshipsMacroTests: XCTestCase {
 
     /// Three relationships in one call. Note: to match the *exact* existing
     /// AllRestaurants naming (`byFortuneResultId`, not the default
-    /// `byFortuneWheelResultId`), `name:` is passed alongside `label:` — they're
-    /// independent overrides, and `label:` alone only changes the accessor's
-    /// argument label, not the storage property name.
-    func testStorageRelationshipsMultipleWithLabelOverrides() throws {
+    /// `byFortuneWheelResultId`), `propertyName:` is passed alongside
+    /// `argumentLabel:`. They are independent overrides: `argumentLabel:` alone
+    /// changes the accessor's argument label, not the storage property name.
+    func testStorageRelationshipsMultipleWithPropertyAndArgumentLabelOverrides() throws {
         #if canImport(UDFMacrosMacros)
             assertMacroExpansion(
                 """
                 @Storage(Restaurant.self)
                 @StorageRelationships(
                     .hasOne(Review.self),
-                    .hasOne(FortuneWheelResult.self, name: "byFortuneResultId", label: "fortuneResult"),
-                    .hasOne(Dish.self, label: "dishID")
+                    .hasOne(FortuneWheelResult.self, propertyName: "byFortuneResultId", argumentLabel: "fortuneResult"),
+                    .hasOne(Dish.self, argumentLabel: "dishID")
                 )
                 struct AllRestaurants: Storage {
                 }
@@ -192,7 +192,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
         #endif
     }
 
-    /// Two relationships to the same parent type without an explicit `name:`
+    /// Two relationships to the same parent type without an explicit `propertyName:`
     /// collide on the default `by<Parent>Id` name — must be a diagnostic, not a
     /// silent duplicate declaration.
     func testStorageRelationshipsDuplicateNameDiagnostic() throws {
@@ -202,7 +202,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                 @Storage(Movie.self)
                 @StorageRelationships(
                     .hasOne(Person.self),
-                    .hasMany(Personnel.self, name: "byPersonId")
+                    .hasMany(Personnel.self, propertyName: "byPersonId")
                 )
                 struct AllMovies: Storage {
                 }
@@ -237,7 +237,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                 }
                 """,
                 diagnostics: [
-                    DiagnosticSpec(message: "Relationship name 'byPersonId' is used more than once. Pass an explicit `name:` to disambiguate two relationships to the same parent type.", line: 4, column: 5),
+                    DiagnosticSpec(message: "Relationship property name 'byPersonId' is used more than once. Pass an explicit `propertyName:` to disambiguate two relationships to the same parent type.", line: 4, column: 5),
                 ],
                 macros: testMacros
             )
@@ -426,7 +426,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
     }
 
     /// Two relationships to the same parent type — one hasOne, one hasMany with
-    /// an explicit `name:` override — must still be flagged. Storage property
+    /// an explicit `propertyName:` override — must still be flagged. Storage property
     /// names differ (`byProducerId` vs `coProducers`), so the existing
     /// `duplicateName` check wouldn't catch this; both would otherwise generate
     /// `Actions.DidLoadNestedItem<Producer.ID, Movie>` as a duplicate case.
@@ -437,7 +437,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                 @Storage(Movie.self)
                 @StorageRelationships(
                     .hasOne(Producer.self),
-                    .hasMany(Producer.self, name: "coProducers")
+                    .hasMany(Producer.self, propertyName: "coProducers")
                 )
                 struct AllMovies: Storage {
                 }
@@ -473,7 +473,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                 """,
                 diagnostics: [
                     DiagnosticSpec(
-                        message: "'Producer' is already used as a relationship parent type on this declaration. Two relationships to the same parent type — regardless of whether they're `.hasOne` or `.hasMany` — would generate a duplicate `Actions.DidLoadNestedItem<Producer.ID, _>` case in _reduceRelationships(_:), even if their storage property names differ via `name:`.",
+                        message: "'Producer' is already used as a relationship parent type on this declaration. Two relationships to the same parent type — regardless of whether they're `.hasOne` or `.hasMany` — would generate a duplicate `Actions.DidLoadNestedItem<Producer.ID, _>` case in _reduceRelationships(_:), even if their storage property names differ via `propertyName:`.",
                         line: 4,
                         column: 5
                     ),
