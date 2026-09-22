@@ -7,8 +7,9 @@ import XCTest
 final class StorageRelationshipsMacroTests: XCTestCase {
     // MARK: - StorageRelationships .hasOne Tests
 
-    /// Single hasOne relationship, default name/label. Only DidLoadNestedItem is
-    /// generated — bulk "by parents" loading is app-level and out of scope.
+    /// Single hasOne relationship with the default `by<Parent>Id` property name
+    /// and `<parent>ID` accessor label. Only DidLoadNestedItem is generated —
+    /// bulk "by parents" loading is app-level and out of scope.
     func testStorageRelationshipsSingleHasOneDefaultNaming() throws {
         #if canImport(UDFMacrosMacros)
             assertMacroExpansion(
@@ -61,7 +62,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                         }
                     }
 
-                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                    func restaurantBy(reviewID id: Review.ID) -> Restaurant.ID? {
                         byReviewId[id]
                     }
                 }
@@ -144,7 +145,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                         }
                     }
 
-                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                    func restaurantBy(reviewID id: Review.ID) -> Restaurant.ID? {
                         byReviewId[id]
                     }
 
@@ -249,10 +250,10 @@ final class StorageRelationshipsMacroTests: XCTestCase {
     // MARK: - StorageRelationships .hasMany Tests
 
     /// Single hasMany relationship, default naming. Uses the same Dish/Restaurant
-    /// pair as the real hand-written AllDishes, so the generated output can be
-    /// diffed directly against it: default name is `byRestaurantId` (not `byMovie`
-    /// / not pluralized) — the key is still a single Restaurant.ID, only the
-    /// *value* is a collection. Three reduce cases are generated (DidLoadNestedItem,
+    /// pair as the real hand-written AllDishes. The generated storage property is
+    /// `byRestaurantId` — the key is still a single Restaurant.ID, while the
+    /// `dishIDsBy(restaurantID:)` accessor makes its collection of IDs explicit.
+    /// Three reduce cases are generated (DidLoadNestedItem,
     /// DidLoadNestedItems, DidLoadNestedByParents), all additive via `.append`,
     /// matching the union convention confirmed in the real AllDishes/AllReviews.
     func testStorageRelationshipsSingleHasManyDefaultNaming() throws {
@@ -321,7 +322,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                         }
                     }
 
-                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                    func dishIDsBy(restaurantID id: Restaurant.ID) -> [Dish.ID] {
                         Array(byRestaurantId[id] ?? [])
                     }
                 }
@@ -409,11 +410,11 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                         }
                     }
 
-                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                    func restaurantBy(reviewID id: Review.ID) -> Restaurant.ID? {
                         byReviewId[id]
                     }
 
-                    func restaurantsBy(category id: Category.ID) -> [Restaurant.ID] {
+                    func restaurantIDsBy(categoryID id: Category.ID) -> [Restaurant.ID] {
                         Array(byCategoryId[id] ?? [])
                     }
                 }
@@ -553,7 +554,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                         }
                     }
 
-                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                    func dishIDsBy(restaurantID id: Restaurant.ID) -> [Dish.ID] {
                         Array(byRestaurantId[id] ?? [])
                     }
                 }
@@ -575,14 +576,14 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                     .hasMany(Restaurant.self)
                 )
                 struct AllDishes: Storage {
-                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                    func dishIDsBy(restaurantID id: Restaurant.ID) -> [Dish.ID] {
                         Array(byRestaurantId[id] ?? [])
                     }
                 }
                 """,
                 expandedSource: """
                 struct AllDishes: Storage {
-                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                    func dishIDsBy(restaurantID id: Restaurant.ID) -> [Dish.ID] {
                         Array(byRestaurantId[id] ?? [])
                     }
 
@@ -716,7 +717,7 @@ final class StorageRelationshipsMacroTests: XCTestCase {
                         }
                     }
 
-                    func dishesBy(restaurant id: Restaurant.ID) -> [Dish.ID] {
+                    func dishIDsBy(restaurantID id: Restaurant.ID) -> [Dish.ID] {
                         Array(byRestaurantId[id] ?? [])
                     }
                 }

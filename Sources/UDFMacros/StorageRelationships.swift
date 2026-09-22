@@ -13,8 +13,9 @@ public enum RelationshipDescriptor {
     ///   - propertyName: Overrides the name of the generated relationship property.
     ///     For example, `"byFortuneResultId"` generates a property with that name.
     ///   - argumentLabel: Overrides the argument label used by the generated
-    ///     relationship lookup method. For example, `"fortuneResult"` generates
-    ///     a lookup such as `restaurantBy(fortuneResult:)`.
+    ///     relationship lookup method. By default, it is the related type name
+    ///     followed by `ID`; for example, `"reviewID"` generates a lookup such
+    ///     as `restaurantBy(reviewID:)`.
     case hasOne(
         Any.Type,
         propertyName: String? = nil,
@@ -28,8 +29,9 @@ public enum RelationshipDescriptor {
     ///   - propertyName: Overrides the name of the generated relationship property.
     ///     For example, `"byCategoryId"` generates a property with that name.
     ///   - argumentLabel: Overrides the argument label used by the generated
-    ///     relationship lookup method. For example, `"category"` generates
-    ///     a lookup such as `restaurantsBy(category:)`.
+    ///     relationship lookup method. By default, it is the related type name
+    ///     followed by `ID`; for example, `"categoryID"` generates a lookup
+    ///     such as `restaurantIDsBy(categoryID:)`.
     case hasMany(
         Any.Type,
         propertyName: String? = nil,
@@ -47,8 +49,8 @@ public enum RelationshipDescriptor {
 ///     @Storage(Restaurant.self)
 ///     @StorageRelationships(
 ///         .hasOne(Review.self),                                    // -> byReviewId
-///         .hasOne(FortuneWheelResult.self, argumentLabel: "fortuneResult"), // matches existing style
-///         .hasOne(Dish.self, argumentLabel: "dishID"),                      // matches existing style
+///         .hasOne(FortuneWheelResult.self, propertyName: "byFortuneResultId"),
+///         .hasOne(Dish.self),
 ///         .hasMany(Category.self)                                  // -> byCategoryId
 ///     )
 ///     struct AllRestaurants: Reducible { }
@@ -56,7 +58,7 @@ public enum RelationshipDescriptor {
 /// Generates, per `.hasOne` relationship:
 /// - `var by<Parent>Id: [Parent.ID: Item.ID] = [:]`
 /// - a `_reduceRelationships(_:)` case for `Actions.DidLoadNestedItem<Parent.ID, Item>`
-/// - an accessor overload `<item>By(<label>: Parent.ID) -> Item.ID?`
+/// - an accessor overload `<item>By(<parent>ID: Parent.ID) -> Item.ID?`
 ///
 /// Generates, per `.hasMany` relationship:
 /// - `var by<Parent>Id: [Parent.ID: OrderedSet<Item.ID>] = [:]` — same naming
@@ -66,7 +68,8 @@ public enum RelationshipDescriptor {
 ///   `Actions.DidLoadNestedItem<Parent.ID, Item>`,
 ///   `Actions.DidLoadNestedItems<Parent.ID, Item>`, and
 ///   `Actions.DidLoadNestedByParents<Parent.ID, Item>`
-/// - a pluralized accessor overload `<item>sBy(<label>: Parent.ID) -> [Item.ID]`
+/// - an accessor overload `<item>IDsBy(<parent>ID: Parent.ID) -> [Item.ID]`, where
+///   `IDs` uses a capitalized initialism and a lowercase plural `s`
 ///
 /// For `.hasOne`, bulk "load nested items grouped by parent" is deliberately
 /// **not** generated. The single-item case (`DidLoadNestedItem`) is the only
@@ -82,8 +85,8 @@ public enum RelationshipDescriptor {
 /// `propertyName:` overrides the storage property; `argumentLabel:` overrides only
 /// the accessor's argument label. They're independent because the existing codebase
 /// already diverges here — `by<Parent>Id` is a strict convention, but argument
-/// labels (`review`, `fortuneResult`, `dishID`) are hand-picked for readability,
-/// not a mechanical function of the type name.
+/// labels can be hand-picked for readability, while the default is the related
+/// type name followed by `ID`.
 ///
 /// The `_reduceRelationships` / `_` prefix marks it as a generated, reserved
 /// member — matching the convention already used elsewhere in this codebase

@@ -571,7 +571,7 @@ final class StorageMacroTests: XCTestCase {
                         }
                     }
 
-                    func restaurantBy(review id: Review.ID) -> Restaurant.ID? {
+                    func restaurantBy(reviewID id: Review.ID) -> Restaurant.ID? {
                         byReviewId[id]
                     }
                 }

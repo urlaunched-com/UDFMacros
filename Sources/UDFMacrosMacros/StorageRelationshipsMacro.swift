@@ -108,7 +108,10 @@ public struct StorageRelationshipsMacro: MemberMacro {
             // No pluralization here — the key is always a single Parent.ID,
             // even for hasMany (the "many" lives in the value's OrderedSet).
             let propertyName = explicitPropertyName ?? "by\(parentTypeName)Id"
-            let argumentLabel = explicitArgumentLabel ?? lowerCamelCase(parentTypeName)
+            let argumentLabel = accessorArgumentLabel(
+                for: parentTypeName,
+                explicitArgumentLabel: explicitArgumentLabel
+            )
 
             guard usedPropertyNames.insert(propertyName).inserted else {
                 context.diagnose(Diagnostic(node: argument, message: StorageRelationshipsDiagnostic.duplicateName(propertyName)))
@@ -227,12 +230,10 @@ public struct StorageRelationshipsMacro: MemberMacro {
             members.append(DeclSyntax(stringLiteral: accessorLines.joined(separator: "\n")))
         }
 
-        // Accessors — hasMany: pluralized name, [Item.ID] return.
-        // Naive "+s" pluralization — cosmetic only (doesn't affect the storage
-        // property name, which stays singular). Irregular plurals won't be
-        // exact; the existing-signature escape hatch lets a hand-written
-        // correctly-pluralized accessor override this one.
-        let accessorManyBaseName = "\(pluralize(lowerCamelCase(itemTypeName)))By"
+        // Accessors — hasMany: a stable, grammar-free name that makes the
+        // collection's contents explicit. `IDs` follows the codebase convention
+        // of capitalizing the initialism while keeping the plural `s` lowercase.
+        let accessorManyBaseName = "\(lowerCamelCase(itemTypeName))IDsBy"
         for relationship in hasManyRelationships {
             let signatureKey = "\(accessorManyBaseName)(\(relationship.argumentLabel))"
             guard !existingFunctionSignatures.contains(signatureKey) else { continue }
@@ -286,7 +287,7 @@ public struct StorageRelationshipsMacro: MemberMacro {
     }
 
     /// Matches on name + parameter labels (e.g. "_reduceRelationships(_)",
-    /// "restaurantBy(review)") — the same fix already applied once in
+    /// "restaurantBy(reviewID)") — the same fix already applied once in
     /// @Storage's own escape-hatch check, for the same reason: matching bare
     /// names alone would mistake unrelated overloads for each other.
     private static func existingFunctionSignatures(in declaration: some DeclGroupSyntax) -> Set<String> {
@@ -306,18 +307,15 @@ public struct StorageRelationshipsMacro: MemberMacro {
         return first.lowercased() + name.dropFirst()
     }
 
-    private static func pluralize(_ word: String) -> String {
-        let lower = word.lowercased()
-        if lower.hasSuffix("s") || lower.hasSuffix("x") || lower.hasSuffix("z")
-            || lower.hasSuffix("ch") || lower.hasSuffix("sh")
-        {
-            return word + "es"
+    /// Returns an explicit label unchanged; otherwise describes the parent ID
+    /// accepted by every generated relationship lookup.
+    private static func accessorArgumentLabel(
+        for parentTypeName: String,
+        explicitArgumentLabel: String?
+    ) -> String {
+        if let explicitArgumentLabel {
+            return explicitArgumentLabel
         }
-        if lower.hasSuffix("y"), let beforeY = word.dropLast().last,
-           !"aeiou".contains(beforeY.lowercased())
-        {
-            return String(word.dropLast()) + "ies"
-        }
-        return word + "s"
+        return "\(lowerCamelCase(parentTypeName))ID"
     }
 }
