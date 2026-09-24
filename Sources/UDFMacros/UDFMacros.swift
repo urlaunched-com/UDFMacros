@@ -1,12 +1,26 @@
 // The Swift Programming Language
 // https://docs.swift.org/swift-book
 
+import UDF
+
+/// - Parameter ignoringTypeNames: Names of additional closure type aliases (e.g. a custom
+///   `typealias MyClosure = (Int) -> Void`) that should be excluded from the generated equality
+///   check, just like direct closure types are. SwiftSyntax cannot resolve typealiases during
+///   macro expansion, so any alias not in the built-in `Command`/`CommandWith...` family must be
+///   listed explicitly here:
+///   ```swift
+///   @AutoEquatable(ignoringTypeNames: ["MyClosure"])
+///   enum Route {
+///       case details(id: String, action: MyClosure)
+///   }
+///   ```
 @attached(extension, conformances: Equatable, names: named(==))
-public macro AutoEquatable() = #externalMacro(module: "UDFMacrosMacros", type: "AutoEquatableMacro")
+public macro AutoEquatable(ignoringTypeNames: [String] = []) = #externalMacro(module: "UDFMacrosMacros", type: "AutoEquatableMacro")
 
+/// - Parameter ignoringTypeNames: Same as `AutoEquatable(ignoringTypeNames:)` - additional
+///   closure type-alias names to exclude from both the generated equality check and hashing.
 @attached(extension, conformances: Hashable, names: arbitrary)
-public macro AutoHashable() = #externalMacro(module: "UDFMacrosMacros", type: "AutoHashableMacro")
-
+public macro AutoHashable(ignoringTypeNames: [String] = []) = #externalMacro(module: "UDFMacrosMacros", type: "AutoHashableMacro")
 @attached(peer)
 public macro SensitiveField() = #externalMacro(module: "UDFMacrosMacros", type: "SensitiveFieldMacro")
 
@@ -36,5 +50,13 @@ public macro SensitiveData(option: SensitiveDataOption? = nil) = #externalMacro(
 /// before. For the rarer case where you need to override one of the
 /// standard four cases itself, write the full `reduce` by hand — the macro
 /// detects that and won't generate a conflicting one.
+///
+/// **Modularization:** conforms the attached struct to UDF's `Storage`
+/// protocol automatically, via a generated `extension AllX: Storage {}` —
+/// this is what lets the storage be passed into modules generically as
+/// `some Storage<Item>`. If the struct already declares `: Storage` itself
+/// (or any other conformance), the macro leaves that alone rather than
+/// generating a conflicting/redundant conformance.
 @attached(member, names: named(byId), named(reduce), arbitrary)
-public macro Storage<Item: Identifiable>(_ type: Item.Type) = #externalMacro(module: "UDFMacrosMacros", type: "StorageMacro")
+@attached(extension, conformances: Storage)
+public macro Storage<Item: StorageItem>(_ type: Item.Type) = #externalMacro(module: "UDFMacrosMacros", type: "StorageMacro")

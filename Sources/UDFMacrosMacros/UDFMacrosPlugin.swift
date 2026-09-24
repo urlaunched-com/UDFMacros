@@ -11,5 +11,6 @@ struct UDFMacrosPlugin: CompilerPlugin {
         SensitiveFieldMacro.self,
         SensitiveDataMacro.self,
         StorageMacro.self,
+        StorageRelationshipsMacro.self,
     ]
 }
