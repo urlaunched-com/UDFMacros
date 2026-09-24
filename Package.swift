@@ -62,5 +62,12 @@ let package = Package(
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),
+        .testTarget(
+            name: "UDFMacrosIntegrationTests",
+            dependencies: [
+                "UDFMacros",
+                .product(name: "UDF", package: "SwiftUI-UDF"),
+            ]
+        ),
     ]
 )
