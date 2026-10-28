@@ -25,22 +25,23 @@ public struct AutoEquatableMacro: ExtensionMacro {
         attachedTo declaration: some DeclGroupSyntax,
         providingExtensionsOf type: some TypeSyntaxProtocol,
         conformingTo _: [TypeSyntax],
-        in _: some MacroExpansionContext
+        in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
         // Additional closure type-alias names supplied at the call site (e.g. `CommandWith`
         // in another module) that SwiftSyntax cannot resolve on its own.
         let ignoringTypeNames = ignoringTypeNames(from: node)
+        let accessModifier = accessModifier(for: declaration, in: context)
         // Ensure we're attached to an enum; otherwise, nothing to generate
         if let structDecl = declaration.as(StructDeclSyntax.self) {
             // Handle struct: compare stored properties
             // Collect all variable declarations in the struct
             let vars = structDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try equatableFor(vars: vars, type: type, ignoringTypeNames: ignoringTypeNames)
+            return try equatableFor(vars: vars, type: type, accessModifier: accessModifier, ignoringTypeNames: ignoringTypeNames)
         } else if let classDecl = declaration.as(ClassDeclSyntax.self) {
             // Handle class: compare stored properties
             // Collect all variable declarations in the class
             let vars = classDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try equatableFor(vars: vars, type: type, ignoringTypeNames: ignoringTypeNames)
+            return try equatableFor(vars: vars, type: type, accessModifier: accessModifier, ignoringTypeNames: ignoringTypeNames)
         } else if let enumDecl = declaration.as(EnumDeclSyntax.self) {
             // Collect all member declarations of the enum
             let members = enumDecl.memberBlock.members
@@ -53,7 +54,7 @@ public struct AutoEquatableMacro: ExtensionMacro {
             let equatableArms = equatableArmsFor(enumElements: elements, ignoringTypeNames: ignoringTypeNames)
 
             // Construct the Equatable extension for the enum
-            let function = try FunctionDeclSyntax("static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
+            let function = try FunctionDeclSyntax("\(raw: accessModifier)static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
                 StmtSyntax("switch (lhs, rhs) {")
                 equatableArms
                 StmtSyntax("default: false")
@@ -80,31 +81,32 @@ public struct AutoHashableMacro: ExtensionMacro {
         attachedTo declaration: some DeclGroupSyntax,
         providingExtensionsOf type: some TypeSyntaxProtocol,
         conformingTo _: [TypeSyntax],
-        in _: some MacroExpansionContext
+        in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
         // Additional closure type-alias names supplied at the call site (e.g. `CommandWith`
         // in another module) that SwiftSyntax cannot resolve on its own.
         let ignoringTypeNames = ignoringTypeNames(from: node)
+        let accessModifier = accessModifier(for: declaration, in: context)
         if let structDecl = declaration.as(StructDeclSyntax.self) {
             let vars = structDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try hashableFor(vars: vars, type: type, ignoringTypeNames: ignoringTypeNames)
+            return try hashableFor(vars: vars, type: type, accessModifier: accessModifier, ignoringTypeNames: ignoringTypeNames)
         } else if let classDecl = declaration.as(ClassDeclSyntax.self) {
             let vars = classDecl.memberBlock.members.compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            return try hashableFor(vars: vars, type: type, ignoringTypeNames: ignoringTypeNames)
+            return try hashableFor(vars: vars, type: type, accessModifier: accessModifier, ignoringTypeNames: ignoringTypeNames)
         } else if let enumDecl = declaration.as(EnumDeclSyntax.self) {
             let members = enumDecl.memberBlock.members
             let caseDecl = members.compactMap { $0.decl.as(EnumCaseDeclSyntax.self) }
             let elements = caseDecl.flatMap { $0.elements }
 
             let equatableArms = equatableArmsFor(enumElements: elements, ignoringTypeNames: ignoringTypeNames)
-            let equalizeFunction = try FunctionDeclSyntax("static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
+            let equalizeFunction = try FunctionDeclSyntax("\(raw: accessModifier)static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
                 StmtSyntax("switch (lhs, rhs) {")
                 equatableArms
                 StmtSyntax("default: false")
                 StmtSyntax("}")
             }
 
-            let hashFunction = try hashFunctionFor(enumElements: elements, ignoringTypeNames: ignoringTypeNames)
+            let hashFunction = try hashFunctionFor(enumElements: elements, accessModifier: accessModifier, ignoringTypeNames: ignoringTypeNames)
             let ext: DeclSyntax =
                 """
                 extension \(type.trimmed): Hashable {
@@ -290,8 +292,72 @@ private func ignoringTypeNames(from node: AttributeSyntax) -> Set<String> {
     return []
 }
 
+/// Determines the access modifier for synthesized protocol requirement methods based on the declaration's modifiers
+/// and enclosing lexical context.
+///
+/// If the declaration has an explicit access modifier:
+/// - `public` or `open` -> `"public "`
+/// - `package` -> `"package "`
+/// - `internal`, `fileprivate`, or `private` -> `""`
+///
+/// If the declaration has no explicit access modifier, checks `context.lexicalContext`
+/// for an enclosing `ExtensionDeclSyntax`:
+/// - enclosing extension with `public` or `open` -> `"public "`
+/// - enclosing extension with `package` -> `"package "`
+/// - otherwise -> `""`
+private func accessModifier(
+    for declaration: some DeclGroupSyntax,
+    in context: some MacroExpansionContext
+) -> String {
+    for modifier in declaration.modifiers {
+        switch modifier.name.tokenKind {
+        case .keyword(.public), .keyword(.open):
+            return "public "
+        case .keyword(.package):
+            return "package "
+        case .keyword(.internal), .keyword(.fileprivate), .keyword(.private):
+            return ""
+        default:
+            break
+        }
+    }
+
+    for enclosing in context.lexicalContext {
+        if let declGroup = enclosing.asProtocol(DeclGroupSyntax.self) {
+            for modifier in declGroup.modifiers {
+                switch modifier.name.tokenKind {
+                case .keyword(.internal), .keyword(.fileprivate), .keyword(.private):
+                    return ""
+                default:
+                    break
+                }
+            }
+        }
+        if let extensionDecl = enclosing.as(ExtensionDeclSyntax.self) {
+            for modifier in extensionDecl.modifiers {
+                switch modifier.name.tokenKind {
+                case .keyword(.public), .keyword(.open):
+                    return "public "
+                case .keyword(.package):
+                    return "package "
+                default:
+                    break
+                }
+            }
+            break
+        }
+    }
+
+    return ""
+}
+
 private extension ExtensionMacro {
-    static func equatableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol, ignoringTypeNames: Set<String> = []) throws -> [ExtensionDeclSyntax] {
+    static func equatableFor(
+        vars: [VariableDeclSyntax],
+        type: some TypeSyntaxProtocol,
+        accessModifier: String,
+        ignoringTypeNames: Set<String> = []
+    ) throws -> [ExtensionDeclSyntax] {
         let properties: [(name: String, typeSyntax: TypeSyntax)] = vars.flatMap { varDecl in
             varDecl.bindings.compactMap { binding in
                 guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
@@ -306,7 +372,7 @@ private extension ExtensionMacro {
         }
         let body = comparisons.isEmpty ? "true" : comparisons.joined(separator: " && ")
         // Build the static == function using SwiftSyntaxBuilder
-        let function = try FunctionDeclSyntax("static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
+        let function = try FunctionDeclSyntax("\(raw: accessModifier)static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
             StmtSyntax("\(raw: body)")
         }
         // Create the extension embedding the function
@@ -319,7 +385,12 @@ private extension ExtensionMacro {
         return [extDecl.cast(ExtensionDeclSyntax.self)]
     }
 
-    static func hashableFor(vars: [VariableDeclSyntax], type: some TypeSyntaxProtocol, ignoringTypeNames: Set<String> = []) throws -> [ExtensionDeclSyntax] {
+    static func hashableFor(
+        vars: [VariableDeclSyntax],
+        type: some TypeSyntaxProtocol,
+        accessModifier: String,
+        ignoringTypeNames: Set<String> = []
+    ) throws -> [ExtensionDeclSyntax] {
         let properties: [(name: String, typeSyntax: TypeSyntax)] = vars.flatMap { varDecl in
             varDecl.bindings.compactMap { binding in
                 guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
@@ -341,12 +412,12 @@ private extension ExtensionMacro {
         }
 
         // Build the static == function using SwiftSyntaxBuilder
-        let equalizeFunction = try FunctionDeclSyntax("static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
+        let equalizeFunction = try FunctionDeclSyntax("\(raw: accessModifier)static func ==(lhs: \(type.trimmed), rhs: \(type.trimmed)) -> Bool") {
             StmtSyntax("\(raw: equalsBody)")
         }
 
         // Build the hash function using SwiftSyntaxBuilder
-        let hashFunction = try FunctionDeclSyntax("func hash(into hasher: inout Hasher)") {
+        let hashFunction = try FunctionDeclSyntax("\(raw: accessModifier)func hash(into hasher: inout Hasher)") {
             hashes
         }
 
@@ -361,7 +432,11 @@ private extension ExtensionMacro {
         return [extDecl.cast(ExtensionDeclSyntax.self)]
     }
 
-    static func hashFunctionFor(enumElements: [EnumCaseElementListSyntax.Element], ignoringTypeNames: Set<String> = []) throws -> FunctionDeclSyntax {
+    static func hashFunctionFor(
+        enumElements: [EnumCaseElementListSyntax.Element],
+        accessModifier: String,
+        ignoringTypeNames: Set<String> = []
+    ) throws -> FunctionDeclSyntax {
         let hashArms = enumElements.map { element in
             let caseName = element.name.text
             if let assoc = element.parameterClause, !assoc.parameters.isEmpty {
@@ -393,7 +468,7 @@ private extension ExtensionMacro {
             }
         }
 
-        return try FunctionDeclSyntax("func hash(into hasher: inout Hasher)") {
+        return try FunctionDeclSyntax("\(raw: accessModifier)func hash(into hasher: inout Hasher)") {
             StmtSyntax("switch self {")
             hashArms
             StmtSyntax("}")

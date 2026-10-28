@@ -557,4 +557,298 @@ final class AutoHashableMacroTests: XCTestCase {
             throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
+
+    func testAutoHashableForPublicEnum() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoHashable public enum TestEnum {
+                    case simple
+                    case detail(id: Int)
+                }
+                """#,
+                expandedSource: #"""
+                public enum TestEnum {
+                    case simple
+                    case detail(id: Int)
+                }
+
+                extension TestEnum: Hashable {
+                    public static func ==(lhs: TestEnum, rhs: TestEnum) -> Bool {
+                        switch (lhs, rhs) {
+                        case (.simple, .simple):
+                            true
+                        case let (.detail(lhs0), .detail(rhs0)):
+                            lhs0 == rhs0
+                        default:
+                            false
+                        }
+                    }
+                    public func hash(into hasher: inout Hasher) {
+                        switch self {
+                        case .simple:
+                            hasher.combine("simple")
+                        case let .detail(value0):
+                            hasher.combine("detail")
+                            hasher.combine(value0)
+                        }
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoHashableForPublicStruct() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoHashable public struct TestStruct {
+                    let id: Int
+                }
+                """#,
+                expandedSource: #"""
+                public struct TestStruct {
+                    let id: Int
+                }
+
+                extension TestStruct: Hashable {
+                    public static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                    public func hash(into hasher: inout Hasher) {
+                        hasher.combine(id)
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoHashableForPackageStruct() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoHashable package struct TestStruct {
+                    let id: Int
+                }
+                """#,
+                expandedSource: #"""
+                package struct TestStruct {
+                    let id: Int
+                }
+
+                extension TestStruct: Hashable {
+                    package static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                    package func hash(into hasher: inout Hasher) {
+                        hasher.combine(id)
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoHashableForOpenClass() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoHashable open class TestClass {
+                    let id: Int
+                }
+                """#,
+                expandedSource: #"""
+                open class TestClass {
+                    let id: Int
+                }
+
+                extension TestClass: Hashable {
+                    public static func ==(lhs: TestClass, rhs: TestClass) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                    public func hash(into hasher: inout Hasher) {
+                        hasher.combine(id)
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoHashableForTypeInPublicExtension() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                public extension Outer {
+                    @AutoHashable
+                    struct Inner {
+                        let id: Int
+                    }
+                }
+                """#,
+                expandedSource: #"""
+                public extension Outer {
+                    struct Inner {
+                        let id: Int
+                    }
+                }
+
+                extension Outer.Inner: Hashable {
+                    public static func ==(lhs: Outer.Inner, rhs: Outer.Inner) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                    public func hash(into hasher: inout Hasher) {
+                        hasher.combine(id)
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoHashableForTypeInPackageExtension() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                package extension Outer {
+                    @AutoHashable
+                    struct Inner {
+                        let id: Int
+                    }
+                }
+                """#,
+                expandedSource: #"""
+                package extension Outer {
+                    struct Inner {
+                        let id: Int
+                    }
+                }
+
+                extension Outer.Inner: Hashable {
+                    package static func ==(lhs: Outer.Inner, rhs: Outer.Inner) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                    package func hash(into hasher: inout Hasher) {
+                        hasher.combine(id)
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoHashableForPublicStructWithIgnoring() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoHashable(ignoring: ["CommandWith"])
+                public struct TestStruct {
+                    let id: Int
+                    let action: CommandWith<Int>
+                }
+                """#,
+                expandedSource: #"""
+                public struct TestStruct {
+                    let id: Int
+                    let action: CommandWith<Int>
+                }
+
+                extension TestStruct: Hashable {
+                    public static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                    public func hash(into hasher: inout Hasher) {
+                        hasher.combine(id)
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoHashableForInternalStruct() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoHashable internal struct TestStruct {
+                    let id: Int
+                }
+                """#,
+                expandedSource: #"""
+                internal struct TestStruct {
+                    let id: Int
+                }
+
+                extension TestStruct: Hashable {
+                    static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                    func hash(into hasher: inout Hasher) {
+                        hasher.combine(id)
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoHashableForExplicitPrivateTypeInPublicExtension() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                public extension Outer {
+                    @AutoHashable
+                    private struct Inner {
+                        let id: Int
+                    }
+                }
+                """#,
+                expandedSource: #"""
+                public extension Outer {
+                    private struct Inner {
+                        let id: Int
+                    }
+                }
+
+                extension Outer.Inner: Hashable {
+                    static func ==(lhs: Outer.Inner, rhs: Outer.Inner) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                    func hash(into hasher: inout Hasher) {
+                        hasher.combine(id)
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
 }
