@@ -1,6 +1,77 @@
 import Foundation
 import UDFMacros
 
+// Compile-time check that the macros work on public and package types.
+@AutoEquatable
+public struct PublicEquatableStruct {
+    let id: Int
+}
+
+@AutoEquatable
+public enum PublicEquatableEnum {
+    case first
+    case item(Int)
+}
+
+@AutoEquatable
+public class PublicEquatableClass {
+    let id: Int = 0
+}
+
+@AutoEquatable
+package struct PackageEquatableStruct {
+    let id: Int
+}
+
+@AutoHashable
+public struct PublicHashableStruct {
+    let id: Int
+}
+
+@AutoHashable
+public enum PublicHashableEnum {
+    case first
+    case item(Int)
+}
+
+@AutoHashable
+public class PublicHashableClass {
+    let id: Int = 0
+}
+
+@AutoHashable
+package struct PackageHashableStruct {
+    let id: Int
+}
+
+public struct PublicScope {}
+
+public extension PublicScope {
+    @AutoEquatable
+    struct EquatableNested {
+        let id: Int
+    }
+
+    @AutoHashable
+    struct HashableNested {
+        let id: Int
+    }
+}
+
+package struct PackageScope {}
+
+package extension PackageScope {
+    @AutoEquatable
+    struct EquatableNested {
+        let id: Int
+    }
+
+    @AutoHashable
+    struct HashableNested {
+        let id: Int
+    }
+}
+
 @AutoHashable
 enum TestEnum {
     case new(Int, String)
