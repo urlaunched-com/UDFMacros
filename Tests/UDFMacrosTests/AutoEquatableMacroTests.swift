@@ -995,4 +995,265 @@ final class AutoEquatableMacroTests: XCTestCase {
             throw XCTSkip("macros are only supported when running tests for the host platform")
         #endif
     }
+
+    func testAutoEquatableForPublicEnum() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoEquatable public enum TestEnum {
+                    case simple
+                    case detail(id: Int)
+                }
+                """#,
+                expandedSource: #"""
+                public enum TestEnum {
+                    case simple
+                    case detail(id: Int)
+                }
+
+                extension TestEnum: Equatable {
+                    public static func ==(lhs: TestEnum, rhs: TestEnum) -> Bool {
+                        switch (lhs, rhs) {
+                        case (.simple, .simple):
+                            true
+                        case let (.detail(lhs0), .detail(rhs0)):
+                            lhs0 == rhs0
+                        default:
+                            false
+                        }
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoEquatableForPublicStruct() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoEquatable public struct TestStruct {
+                    let id: Int
+                }
+                """#,
+                expandedSource: #"""
+                public struct TestStruct {
+                    let id: Int
+                }
+
+                extension TestStruct: Equatable {
+                    public static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoEquatableForPackageStruct() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoEquatable package struct TestStruct {
+                    let id: Int
+                }
+                """#,
+                expandedSource: #"""
+                package struct TestStruct {
+                    let id: Int
+                }
+
+                extension TestStruct: Equatable {
+                    package static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoEquatableForOpenClass() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoEquatable open class TestClass {
+                    let id: Int
+                }
+                """#,
+                expandedSource: #"""
+                open class TestClass {
+                    let id: Int
+                }
+
+                extension TestClass: Equatable {
+                    public static func ==(lhs: TestClass, rhs: TestClass) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoEquatableForTypeInPublicExtension() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                public extension Outer {
+                    @AutoEquatable
+                    struct Inner {
+                        let id: Int
+                    }
+                }
+                """#,
+                expandedSource: #"""
+                public extension Outer {
+                    struct Inner {
+                        let id: Int
+                    }
+                }
+
+                extension Outer.Inner: Equatable {
+                    public static func ==(lhs: Outer.Inner, rhs: Outer.Inner) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoEquatableForTypeInPackageExtension() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                package extension Outer {
+                    @AutoEquatable
+                    struct Inner {
+                        let id: Int
+                    }
+                }
+                """#,
+                expandedSource: #"""
+                package extension Outer {
+                    struct Inner {
+                        let id: Int
+                    }
+                }
+
+                extension Outer.Inner: Equatable {
+                    package static func ==(lhs: Outer.Inner, rhs: Outer.Inner) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoEquatableForPublicStructWithIgnoring() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoEquatable(ignoring: ["CommandWith"])
+                public struct TestStruct {
+                    let id: Int
+                    let action: CommandWith<Int>
+                }
+                """#,
+                expandedSource: #"""
+                public struct TestStruct {
+                    let id: Int
+                    let action: CommandWith<Int>
+                }
+
+                extension TestStruct: Equatable {
+                    public static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoEquatableForInternalStruct() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                @AutoEquatable internal struct TestStruct {
+                    let id: Int
+                }
+                """#,
+                expandedSource: #"""
+                internal struct TestStruct {
+                    let id: Int
+                }
+
+                extension TestStruct: Equatable {
+                    static func ==(lhs: TestStruct, rhs: TestStruct) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testAutoEquatableForExplicitPrivateTypeInPublicExtension() throws {
+        #if canImport(UDFMacrosMacros)
+            assertMacroExpansion(
+                #"""
+                public extension Outer {
+                    @AutoEquatable
+                    private struct Inner {
+                        let id: Int
+                    }
+                }
+                """#,
+                expandedSource: #"""
+                public extension Outer {
+                    private struct Inner {
+                        let id: Int
+                    }
+                }
+
+                extension Outer.Inner: Equatable {
+                    static func ==(lhs: Outer.Inner, rhs: Outer.Inner) -> Bool {
+                        lhs.id == rhs.id
+                    }
+                }
+                """#,
+                macros: testMacros
+            )
+        #else
+            throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
 }
