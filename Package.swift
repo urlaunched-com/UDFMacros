@@ -25,7 +25,7 @@ let package = Package(
         // Pinned to the 2.0.0 alpha so @Storage can auto-conform attached
         // structs to UDF's new `Storage` protocol (needed for modularization).
         // Move this to a proper `from:` release requirement once UDF 2.0.0 ships.
-        .package(url: "https://github.com/Maks-Jago/SwiftUI-UDF.git", exact: "2.0.0-alpha.2"),
+        .package(url: "https://github.com/Maks-Jago/SwiftUI-UDF.git", from: "2.0.0-alpha.5"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
